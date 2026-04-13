@@ -6,6 +6,7 @@ import contentRoutes from './routes/contents';
 import userRoutes from './routes/users';
 import socialRoutes from './routes/social';
 import aiRoutes from './routes/ai';
+import { seedDatabase } from './seed';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -15,16 +16,28 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
+app.use('*', async (c, next) => {
+  try {
+    await seedDatabase(c.env.KV);
+  } catch (e) {
+    // seed errors should not block requests
+  }
+  await next();
+});
+
 app.route('/api/auth', authRoutes);
 app.route('/api/contents', contentRoutes);
 app.route('/api/users', userRoutes);
 app.route('/api', socialRoutes);
 app.route('/api/ai', aiRoutes);
-
-// Open API v1 (reuses content routes with API key auth)
 app.route('/api/v1/contents', contentRoutes);
 
 app.get('/api/health', (c) => c.json({ status: 'ok', version: '1.0.0' }));
+
+app.get('/api/templates', async (c) => {
+  const data = await c.env.KV.get('templates:featured');
+  return c.json({ success: true, data: data ? JSON.parse(data) : [] });
+});
 
 app.notFound((c) => c.json({ success: false, error: 'Not found' }, 404));
 

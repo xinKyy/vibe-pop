@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import { generateContent } from '../services/ai';
+import { matchTemplate, CONTENT_TEMPLATES } from '../services/templates';
 
 const ai = new Hono<{ Bindings: Env }>();
 
@@ -15,6 +16,24 @@ ai.post('/generate', authMiddleware, async (c) => {
     return c.json({ success: false, error: 'Prompt required' }, 400);
   }
 
+  // First try template matching for better offline experience
+  const templateKey = matchTemplate(prompt);
+  if (templateKey && !existingCode) {
+    const tmpl = CONTENT_TEMPLATES[templateKey];
+    return c.json({
+      success: true,
+      data: {
+        code: tmpl.code,
+        title: tmpl.title,
+        description: tmpl.description,
+        type: tmpl.type,
+        coverEmoji: tmpl.emoji,
+        coverGradient: tmpl.gradient,
+      },
+    });
+  }
+
+  // Then try real AI generation
   const code = await generateContent(prompt, existingCode || null, c.env);
 
   return c.json({

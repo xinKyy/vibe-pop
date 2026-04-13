@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Content } from '../../types';
-import { formatCount } from '../../api/mockData';
+import { formatCount } from '../../utils/format';
 import { useSocialStore } from '../../stores/socialStore';
 import CommentSheet from '../social/CommentSheet';
 import ShareSheet from '../social/ShareSheet';
@@ -21,13 +21,14 @@ export default function FeedItem({ content, onRemix }: FeedItemProps) {
 
   const [likeCount, setLikeCount] = useState(content.likeCount);
   const [favoriteCount, setFavoriteCount] = useState(content.favoriteCount);
+  const [commentCount, setCommentCount] = useState(content.commentCount);
   const [showHeart, setShowHeart] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
-  const [paused, setPaused] = useState(false);
   const lastTapRef = useRef(0);
 
-  const handleTap = useCallback(() => {
+  const handleTap = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('iframe')) return;
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
       if (!liked) {
@@ -36,12 +37,6 @@ export default function FeedItem({ content, onRemix }: FeedItemProps) {
       }
       setShowHeart(true);
       setTimeout(() => setShowHeart(false), 800);
-    } else {
-      setTimeout(() => {
-        if (Date.now() - lastTapRef.current >= 300) {
-          setPaused((v) => !v);
-        }
-      }, 300);
     }
     lastTapRef.current = now;
   }, [liked, content.id, toggleLike]);
@@ -56,94 +51,158 @@ export default function FeedItem({ content, onRemix }: FeedItemProps) {
     setFavoriteCount((c) => (nowFaved ? c + 1 : c - 1));
   };
 
+  const handleCommentCountChange = useCallback((delta: number) => {
+    setCommentCount((c) => c + delta);
+  }, []);
+
+  const hasCode = content.code && content.code.length > 50;
+
   return (
     <>
       <div
-        className="h-[calc(100dvh-60px)] min-h-[calc(100dvh-60px)] snap-start snap-always relative flex items-center justify-center overflow-hidden"
-        style={{ background: content.coverGradient }}
+        className="h-full min-h-full snap-start snap-always relative flex items-center justify-center overflow-hidden bg-bg"
+        style={{ background: hasCode ? '#0A0A0C' : content.coverGradient }}
         onClick={handleTap}
       >
-        <div className="w-full h-full flex items-center justify-center text-7xl select-none">
-          {content.coverEmoji}
-        </div>
-
-        {paused && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none z-20">
-            <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur flex items-center justify-center">
-              <span className="text-3xl ml-1">▶</span>
-            </div>
+        {hasCode ? (
+          <iframe
+            srcDoc={content.code}
+            sandbox="allow-scripts"
+            className="w-full h-full border-0"
+            title={content.title}
+            style={{ pointerEvents: 'auto' }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-8xl select-none">
+            {content.coverEmoji}
           </div>
         )}
 
         {showHeart && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
-            <span className="text-8xl animate-heart-burst">❤️</span>
+            <svg width="100" height="100" viewBox="0 0 24 24" className="animate-heart-burst drop-shadow-[0_0_30px_rgba(232,234,26,0.7)]">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#E8EA1A"/>
+            </svg>
           </div>
         )}
 
         {/* Side actions */}
-        <div className="absolute right-4 bottom-52 flex flex-col gap-5 z-10" onClick={(e) => e.stopPropagation()}>
-          <SideButton icon={liked ? '❤️' : '🤍'} count={formatCount(likeCount)} active={liked} onClick={handleToggleLike} />
-          <SideButton icon={favorited ? '⭐' : '☆'} count={formatCount(favoriteCount)} active={favorited} onClick={handleToggleFavorite} />
-          <SideButton icon="💬" count={formatCount(content.commentCount)} onClick={() => setShowComments(true)} />
-          <SideButton icon="🔄" onClick={() => onRemix?.(content)} />
-          <SideButton icon="↗️" onClick={() => setShowShare(true)} />
+        <div className="absolute z-10 flex flex-col" style={{ right: 12, bottom: 100, gap: 10 }}>
+          <SideAction
+            label="♥"
+            count={formatCount(likeCount)}
+            active={liked}
+            onClick={handleToggleLike}
+          />
+          <SideAction
+            label="★"
+            count={formatCount(favoriteCount)}
+            active={favorited}
+            onClick={handleToggleFavorite}
+          />
+          <SideAction
+            label="✦"
+            count={formatCount(commentCount)}
+            onClick={() => setShowComments(true)}
+          />
+          <SideAction
+            label="↻"
+            onClick={() => onRemix?.(content)}
+          />
+          <SideAction
+            label="↗"
+            onClick={() => setShowShare(true)}
+          />
         </div>
 
-        {/* Bottom info */}
-        <div className="absolute bottom-20 left-0 right-14 px-5 pt-16 bg-gradient-to-t from-black/80 to-transparent z-10" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-2 mb-1 text-sm font-semibold">
+        {/* Bottom info overlay */}
+        <div
+          className="absolute bottom-0 left-0 z-10 pointer-events-auto"
+          style={{
+            right: 0,
+            padding: '20px 16px 14px',
+            background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 60%, transparent 100%)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <span
-              className="text-pink cursor-pointer hover:underline"
+              className="cursor-pointer hover:text-accent transition-colors"
+              style={{ fontSize: 15, fontWeight: 700, color: '#F5F5F7', letterSpacing: '-0.02em' }}
               onClick={() => navigate(`/user/${content.authorId}`)}
             >
-              @{content.author.username}
+              @{content.author?.username || '匿名'}
             </span>
             <button
               onClick={() => toggleFollow(content.authorId)}
-              className={`px-2 py-0.5 rounded-xl text-[11px] font-medium transition-all ${
-                following
-                  ? 'bg-white/10 text-[var(--color-text-muted)]'
-                  : 'bg-gradient-to-br from-pink to-pink-dark text-white'
-              }`}
+              style={{
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: 9999,
+                background: following ? 'rgba(28,28,31,0.5)' : '#E8EA1A',
+                color: following ? '#5A5A62' : '#0A0A0C',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
               {following ? '已关注' : '+ 关注'}
             </button>
           </div>
-          <div className="text-base mb-1">
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#F5F5F7', letterSpacing: '-0.02em', lineHeight: 1.3, marginBottom: 4 }}>
             {content.title}
-            {content.description && <span className="text-white/70"> - {content.description}</span>}
           </div>
-          {content.remixFromId && (
-            <div className="text-xs text-white/50 mb-2">🔄 Remix from @{content.author.username}</div>
+          {content.description && (
+            <div style={{ fontSize: 13, color: 'rgba(245,245,247,0.6)', lineHeight: 1.5, marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{content.description}</div>
           )}
-          <div className="flex gap-5 text-[13px] text-gray-300 pb-1">
+          <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'rgba(245,245,247,0.35)', fontWeight: 500 }}>
             <span>▶ {formatCount(content.playCount)}</span>
-            <span>❤ {formatCount(likeCount)}</span>
-            <span>⭐ {formatCount(favoriteCount)}</span>
-            <span>💬 {formatCount(content.commentCount)}</span>
+            <span>♥ {formatCount(likeCount)}</span>
+            <span>★ {formatCount(favoriteCount)}</span>
           </div>
         </div>
       </div>
 
-      <CommentSheet contentId={content.id} isOpen={showComments} onClose={() => setShowComments(false)} />
+      <CommentSheet
+        contentId={content.id}
+        isOpen={showComments}
+        onClose={() => setShowComments(false)}
+        onCommentCountChange={handleCommentCountChange}
+      />
       <ShareSheet content={content} isOpen={showShare} onClose={() => setShowShare(false)} />
     </>
   );
 }
 
-function SideButton({ icon, count, active, onClick }: { icon: string; count?: string; active?: boolean; onClick: () => void }) {
+function SideAction({ label, count, active, onClick }: {
+  label: string;
+  count?: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
       <button
         onClick={onClick}
-        className={`w-12 h-12 rounded-full backdrop-blur-lg flex items-center justify-center text-2xl transition-all hover:scale-110 active:scale-95 ${
-          active ? 'bg-pink/20' : 'bg-white/10 hover:bg-pink/30'
-        }`}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 18,
+          border: 'none',
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+          background: active ? '#E8EA1A' : 'rgba(0,0,0,0.4)',
+          color: active ? '#0A0A0C' : 'rgba(255,255,255,0.9)',
+          backdropFilter: active ? 'none' : 'blur(12px)',
+          boxShadow: active ? '0 0 12px rgba(232,234,26,0.4)' : 'none',
+        }}
       >
-        {icon}
+        {label}
       </button>
-      {count && <span className="text-[10px] text-white/70">{count}</span>}
+      {count && <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(245,245,247,0.5)', fontVariantNumeric: 'tabular-nums' }}>{count}</span>}
     </div>
   );
 }

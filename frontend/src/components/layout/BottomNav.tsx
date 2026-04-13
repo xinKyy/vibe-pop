@@ -1,10 +1,10 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const tabs = [
-  { path: '/', icon: '🏠', label: '浏览' },
-  { path: '/create', icon: '➕', label: '创作', isCenter: true },
-  { path: '/profile', icon: '👤', label: '我的' },
-];
+  { path: '/', label: '发现', icon: '◈' },
+  { path: '/create', label: '创作', icon: '+', isCenter: true },
+  { path: '/profile', label: '我的', icon: '◎' },
+] as const;
 
 export default function BottomNav() {
   const location = useLocation();
@@ -16,29 +16,31 @@ export default function BottomNav() {
   };
 
   return (
-    <nav className="absolute bottom-0 left-0 right-0 h-15 bg-[var(--color-bg-primary)]/95 backdrop-blur-xl border-t border-[var(--color-border)] flex justify-around items-center z-[1000]">
-      {tabs.map((tab) =>
-        tab.isCenter ? (
-          <button
-            key={tab.path}
-            onClick={() => navigate(tab.path)}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-pink to-pink-dark flex items-center justify-center text-white text-2xl -mt-5 shadow-[0_4px_20px_rgba(255,107,157,0.4)] active:scale-95 transition-transform"
-          >
-            {tab.icon}
-          </button>
-        ) : (
-          <button
-            key={tab.path}
-            onClick={() => navigate(tab.path)}
-            className={`flex flex-col items-center gap-1 text-[11px] px-5 py-2 transition-colors ${
-              isActive(tab.path) ? 'text-pink' : 'text-[var(--color-text-dim)]'
-            }`}
-          >
-            <span className="text-2xl">{tab.icon}</span>
-            <span>{tab.label}</span>
-          </button>
-        )
-      )}
+    <nav className="absolute bottom-0 left-0 right-0 h-[60px] bg-bg/95 backdrop-blur-xl border-t border-border/50 flex items-center px-2 z-[1000]">
+      {tabs.map((tab) => (
+        <button
+          key={tab.path}
+          onClick={() => navigate(tab.path)}
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all duration-200 ${
+            tab.isCenter
+              ? ''
+              : isActive(tab.path)
+                ? 'text-accent'
+                : 'text-dim hover:text-muted-fg'
+          }`}
+        >
+          {tab.isCenter ? (
+            <div className="w-10 h-10 rounded-[var(--radius-md)] bg-accent text-accent-fg flex items-center justify-center text-xl font-bold hover:brightness-110 active:scale-95 transition-all duration-200">
+              {tab.icon}
+            </div>
+          ) : (
+            <>
+              <span className="text-base leading-none">{tab.icon}</span>
+              <span className="text-[10px] font-semibold tracking-wide">{tab.label}</span>
+            </>
+          )}
+        </button>
+      ))}
     </nav>
   );
 }

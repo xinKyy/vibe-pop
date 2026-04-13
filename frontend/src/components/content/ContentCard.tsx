@@ -1,5 +1,5 @@
 import type { Content } from '../../types';
-import { formatCount } from '../../api/mockData';
+import { formatCount } from '../../utils/format';
 
 interface ContentCardProps {
   content: Content;
@@ -10,34 +10,59 @@ interface ContentCardProps {
 }
 
 export default function ContentCard({ content, onClick, showManage, onEdit, onDelete }: ContentCardProps) {
+  const hasCode = content.code && content.code.length > 50;
+
   return (
     <div
-      className="bg-[var(--color-bg-card)] rounded-xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+      className="group relative bg-card rounded-[var(--radius-md)] overflow-hidden cursor-pointer transition-all duration-300 hover:ring-1 hover:ring-accent/40 active:scale-[0.98]"
       onClick={onClick}
     >
       <div
-        className="aspect-[3/4] flex items-center justify-center text-5xl"
-        style={{ background: content.coverGradient }}
+        className="aspect-square flex items-center justify-center relative overflow-hidden"
+        style={{ background: hasCode ? '#0A0A0C' : (content.coverGradient || '#1C1C1F') }}
       >
-        {content.coverEmoji}
+        {hasCode ? (
+          <iframe
+            srcDoc={content.code}
+            sandbox="allow-scripts"
+            className="w-full h-full border-0 pointer-events-none"
+            title={content.title}
+            loading="lazy"
+          />
+        ) : (
+          <span className="text-5xl select-none group-hover:scale-110 transition-transform duration-300">{content.coverEmoji}</span>
+        )}
+
+        <div className="absolute top-2.5 right-2.5 flex items-center gap-1 px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-[var(--radius-sm)] text-[11px] text-fg/80 font-semibold tabular-nums">
+          {formatCount(content.playCount)}
+        </div>
       </div>
-      <div className="p-2.5">
-        <div className="text-[13px] font-medium mb-1.5 truncate">{content.title}</div>
-        <div className="flex gap-2.5 text-[11px] text-[var(--color-text-muted)]">
-          <span className="flex items-center gap-1">▶ {formatCount(content.playCount)}</span>
-          <span className="flex items-center gap-1">❤ {formatCount(content.likeCount)}</span>
+
+      <div style={{ padding: '8px 10px' }}>
+        <div className="text-[13px] font-semibold truncate text-fg group-hover:text-accent transition-colors duration-200" style={{ marginBottom: 4 }}>
+          {content.title}
+        </div>
+        <div className="flex items-center text-[12px] text-dim font-medium" style={{ gap: 10 }}>
+          <span className="flex items-center gap-1">
+            ♥ {formatCount(content.likeCount)}
+          </span>
+          <span className="flex items-center gap-1">
+            ✦ {formatCount(content.commentCount)}
+          </span>
         </div>
         {showManage && (
-          <div className="flex gap-2 mt-2">
+          <div className="flex border-t border-border/50" style={{ gap: 6, marginTop: 8, paddingTop: 8 }}>
             <button
               onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
-              className="flex-1 text-[11px] py-1 rounded-md bg-[var(--color-border-input)] text-[var(--color-text-muted)]"
+              className="flex-1 text-[12px] font-medium rounded-[var(--radius-sm)] text-muted-fg hover:bg-muted hover:text-fg transition-colors"
+              style={{ padding: '6px 0' }}
             >
               编辑
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
-              className="flex-1 text-[11px] py-1 rounded-md bg-[var(--color-border-input)] text-red-400"
+              className="flex-1 text-[12px] font-medium rounded-[var(--radius-sm)] text-red-400 hover:bg-red-500/10 transition-colors"
+              style={{ padding: '6px 0' }}
             >
               删除
             </button>

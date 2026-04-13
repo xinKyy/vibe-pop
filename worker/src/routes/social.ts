@@ -4,6 +4,26 @@ import { authMiddleware, optionalAuth } from '../middleware/auth';
 
 const social = new Hono<{ Bindings: Env }>();
 
+// --- Social state (for hydrating frontend) ---
+social.get('/users/me/social-state', authMiddleware, async (c) => {
+  const userId = c.get('userId' as never) as string;
+
+  const [likesJson, favsJson, followingJson] = await Promise.all([
+    c.env.KV.get(`users:${userId}:likes`),
+    c.env.KV.get(`users:${userId}:favorites`),
+    c.env.KV.get(`users:${userId}:following`),
+  ]);
+
+  return c.json({
+    success: true,
+    data: {
+      likes: likesJson ? JSON.parse(likesJson) : [],
+      favorites: favsJson ? JSON.parse(favsJson) : [],
+      following: followingJson ? JSON.parse(followingJson) : [],
+    },
+  });
+});
+
 // --- Like ---
 social.post('/contents/:id/like', authMiddleware, async (c) => {
   const userId = c.get('userId' as never) as string;
@@ -111,7 +131,6 @@ social.post('/contents/:id/comments', authMiddleware, async (c) => {
   comments.unshift(comment);
   await c.env.KV.put(`contents:${contentId}:comments`, JSON.stringify(comments));
 
-  // Update comment count
   const contentData = await c.env.KV.get(`contents:${contentId}`);
   if (contentData) {
     const content: Content = JSON.parse(contentData);
@@ -119,7 +138,18 @@ social.post('/contents/:id/comments', authMiddleware, async (c) => {
     await c.env.KV.put(`contents:${contentId}`, JSON.stringify(content));
   }
 
-  return c.json({ success: true, data: comment }, 201);
+  const userData = await c.env.KV.get(`users:${userId}`);
+  const user: User | null = userData ? JSON.parse(userData) : null;
+
+  return c.json({
+    success: true,
+    data: {
+      ...comment,
+      user: user
+        ? { id: user.id, username: user.username, handle: user.handle, avatar: user.avatar }
+        : { id: userId, username: '匿名', handle: 'anon', avatar: '👤' },
+    },
+  }, 201);
 });
 
 // --- Follow ---

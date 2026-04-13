@@ -1,11 +1,22 @@
 import { Hono } from 'hono';
-import type { Env, Content } from '../types';
+import type { Env, Content, User } from '../types';
 import { authMiddleware, optionalAuth } from '../middleware/auth';
 
 const contents = new Hono<{ Bindings: Env }>();
 
 function generateId(): string {
   return `cnt_${crypto.randomUUID().slice(0, 8)}`;
+}
+
+async function enrichContent(content: Content, kv: KVNamespace): Promise<Content & { author: { id: string; username: string; handle: string; avatar: string } }> {
+  const userData = await kv.get(`users:${content.authorId}`);
+  const user: User | null = userData ? JSON.parse(userData) : null;
+  return {
+    ...content,
+    author: user
+      ? { id: user.id, username: user.username, handle: user.handle, avatar: user.avatar }
+      : { id: content.authorId, username: '匿名', handle: 'anon', avatar: '👤' },
+  };
 }
 
 contents.get('/', optionalAuth(), async (c) => {
@@ -25,10 +36,10 @@ contents.get('/', optionalAuth(), async (c) => {
   const start = (page - 1) * limit;
   const pageIds = filteredIds.slice(start, start + limit);
 
-  const items: Content[] = [];
+  const items = [];
   for (const id of pageIds) {
     const data = await c.env.KV.get(`contents:${id}`);
-    if (data) items.push(JSON.parse(data));
+    if (data) items.push(await enrichContent(JSON.parse(data), c.env.KV));
   }
 
   return c.json({
@@ -47,10 +58,10 @@ contents.get('/feed', optionalAuth(), async (c) => {
   const start = (page - 1) * limit;
   const pageIds = allIds.slice(start, start + limit);
 
-  const items: Content[] = [];
+  const items = [];
   for (const id of pageIds) {
     const data = await c.env.KV.get(`contents:${id}`);
-    if (data) items.push(JSON.parse(data));
+    if (data) items.push(await enrichContent(JSON.parse(data), c.env.KV));
   }
 
   return c.json({
@@ -68,7 +79,7 @@ contents.get('/:id', optionalAuth(), async (c) => {
   content.playCount++;
   await c.env.KV.put(`contents:${id}`, JSON.stringify(content));
 
-  return c.json({ success: true, data: content });
+  return c.json({ success: true, data: await enrichContent(content, c.env.KV) });
 });
 
 contents.post('/', authMiddleware, async (c) => {
@@ -78,6 +89,8 @@ contents.post('/', authMiddleware, async (c) => {
     description?: string;
     type?: string;
     code?: string;
+    coverEmoji?: string;
+    coverGradient?: string;
     prompt?: string;
     auto_publish?: boolean;
   }>();
@@ -97,10 +110,10 @@ contents.post('/', authMiddleware, async (c) => {
     title: body.title || '未命名作品',
     description: body.description || '',
     type: (body.type as Content['type']) || 'other',
-    code: body.code || `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:72px">${emojis[Math.floor(Math.random() * emojis.length)]}</div>`,
+    code: body.code || '',
     coverUrl: '',
-    coverEmoji: emojis[Math.floor(Math.random() * emojis.length)],
-    coverGradient: gradients[Math.floor(Math.random() * gradients.length)],
+    coverEmoji: body.coverEmoji || emojis[Math.floor(Math.random() * emojis.length)],
+    coverGradient: body.coverGradient || gradients[Math.floor(Math.random() * gradients.length)],
     tags: [],
     authorId: userId,
     status: body.auto_publish ? 'published' : 'draft',
@@ -115,23 +128,15 @@ contents.post('/', authMiddleware, async (c) => {
 
   await c.env.KV.put(`contents:${id}`, JSON.stringify(content));
 
-  // Add to user's content list
   const userContentsJson = await c.env.KV.get(`users:${userId}:contents`);
   const userContents: string[] = userContentsJson ? JSON.parse(userContentsJson) : [];
   userContents.unshift(id);
   await c.env.KV.put(`users:${userId}:contents`, JSON.stringify(userContents));
 
   if (content.status === 'published') {
-    const listJson = await c.env.KV.get('contents:list');
-    const list: string[] = listJson ? JSON.parse(listJson) : [];
-    list.unshift(id);
-    await c.env.KV.put('contents:list', JSON.stringify(list));
-
+    await addToList(c.env.KV, 'contents:list', id);
     if (content.type) {
-      const catJson = await c.env.KV.get(`contents:category:${content.type}`);
-      const catList: string[] = catJson ? JSON.parse(catJson) : [];
-      catList.unshift(id);
-      await c.env.KV.put(`contents:category:${content.type}`, JSON.stringify(catList));
+      await addToList(c.env.KV, `contents:category:${content.type}`, id);
     }
   }
 
@@ -142,8 +147,6 @@ contents.post('/', authMiddleware, async (c) => {
       status: content.status,
       title: content.title,
       code: content.code,
-      preview_url: `https://vibepop.app/preview/${id}`,
-      publish_url: `https://vibepop.app/c/${id}`,
     },
   }, 201);
 });
@@ -179,7 +182,6 @@ contents.delete('/:id', authMiddleware, async (c) => {
 
   await c.env.KV.delete(`contents:${id}`);
 
-  // Remove from lists
   const listJson = await c.env.KV.get('contents:list');
   if (listJson) {
     const list: string[] = JSON.parse(listJson);
@@ -208,18 +210,21 @@ contents.post('/:id/publish', authMiddleware, async (c) => {
   if (body.type) content.type = body.type as Content['type'];
 
   await c.env.KV.put(`contents:${id}`, JSON.stringify(content));
-
-  const listJson = await c.env.KV.get('contents:list');
-  const list: string[] = listJson ? JSON.parse(listJson) : [];
-  if (!list.includes(id)) {
-    list.unshift(id);
-    await c.env.KV.put('contents:list', JSON.stringify(list));
-  }
+  await addToList(c.env.KV, 'contents:list', id);
 
   return c.json({
     success: true,
-    data: { content_id: id, status: 'published', publish_url: `https://vibepop.app/c/${id}` },
+    data: { content_id: id, status: 'published' },
   });
 });
+
+async function addToList(kv: KVNamespace, key: string, id: string) {
+  const json = await kv.get(key);
+  const list: string[] = json ? JSON.parse(json) : [];
+  if (!list.includes(id)) {
+    list.unshift(id);
+    await kv.put(key, JSON.stringify(list));
+  }
+}
 
 export default contents;

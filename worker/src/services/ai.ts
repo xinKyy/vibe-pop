@@ -1,20 +1,33 @@
 import type { Env } from '../types';
 
-const SYSTEM_PROMPT = `You are VibePop's creative AI assistant. You generate interactive HTML/CSS/JavaScript content that runs in a mobile viewport (375px wide).
+const SYSTEM_PROMPT = `你是一位为 VibePop 平台生成可视化内容的 AI 编辑器。用户会输入主题、文案或图片素材，你需要直接输出一个完整的、可运行的单一 HTML 文件（内联样式，无外部 CSS/JS 依赖）。
 
-Rules:
-- Output a single self-contained HTML document with inline CSS and JS
-- Use modern CSS (flexbox, grid, gradients, animations)
-- Make it interactive and fun
-- Mobile-first design (375px width, touch events)
-- No external dependencies or CDN links
-- No eval(), new Function(), or external HTTP requests
-- No localStorage or cookie access
-- Keep total code under 50KB
-- Use vibrant colors and smooth animations
-- Add touch/click interactions
+## 硬性技术约束
 
-Output ONLY the HTML code, no explanations.`;
+### 画布与视口
+- 基准画布宽度：375px。
+- 所有元素最大宽度不得超过 100vw，禁止出现水平滚动条。
+- 内容高度不限，支持垂直滚动，但核心信息在 844px 高度（iPhone 14）内必须可见或具备明确的滚动暗示。
+
+### 响应式规则（Mobile-First）
+- 以移动端为默认样式，桌面端使用 @media (min-width: 768px) 做适度放大。
+- 布局只用 Flexbox 或 CSS Grid，移动端禁止 float 和多列布局。
+- 间距优先使用 rem 和 %，细线/边框可用 px，但容器间距禁用大段固定像素值。
+- 任何可点击元素在 375px 下的最小触控区域不得低于 44×44px。
+
+### 代码规范
+- 输出必须是单一 HTML 文件，<style> 标签内联在 <head> 中。
+- 图片必须自带 width: 100%; height: auto; display: block; object-fit: cover/contain。
+- 禁止用绝对定位承载核心内容（装饰性元素除外）。
+- 移动端字体不得小于 14px。
+- 动画必须包裹在 @media (prefers-reduced-motion: no-preference) 内。
+
+### 兼容性
+- 只支持竖屏。如果检测到用户要求横屏内容，自动将其适配为竖屏布局并重排元素。
+- 避免使用过于前卫的 CSS 属性（如 container-queries、@layer），优先使用广泛支持的语法。
+
+## 输出格式
+你的回复必须仅包含可运行的 HTML 代码，以 <!DOCTYPE html> 开头。不要在代码块外添加任何解释文字。`;
 
 export async function generateContent(
   prompt: string,
@@ -22,7 +35,7 @@ export async function generateContent(
   env: Env
 ): Promise<string> {
   const apiKey = env.AI_API_KEY;
-  const baseUrl = env.AI_BASE_URL || 'https://api.openai.com/v1';
+  const baseUrl = env.AI_BASE_URL || 'https://api.deepseek.com/v1';
 
   if (!apiKey) {
     return generateFallbackContent(prompt);
@@ -42,22 +55,32 @@ export async function generateContent(
       messages.push({ role: 'user', content: prompt });
     }
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const url = `${baseUrl}/chat/completions`;
+    console.log('[AI] Calling:', url, 'model: deepseek-chat');
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'deepseek-chat',
         messages,
-        max_tokens: 4096,
+        max_tokens: 8192,
         temperature: 0.7,
       }),
+      signal: controller.signal,
     });
 
+    clearTimeout(timeout);
+
     if (!response.ok) {
-      console.error('AI API error:', response.status);
+      const errorText = await response.text().catch(() => 'unknown');
+      console.error('[AI] API error:', response.status, errorText);
       return generateFallbackContent(prompt);
     }
 
@@ -68,8 +91,8 @@ export async function generateContent(
     if (htmlMatch) code = htmlMatch[1];
 
     return code.trim();
-  } catch (error) {
-    console.error('AI generation error:', error);
+  } catch (error: any) {
+    console.error('[AI] Generation error:', error?.message || error);
     return generateFallbackContent(prompt);
   }
 }

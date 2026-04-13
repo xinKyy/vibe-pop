@@ -1,14 +1,17 @@
 name = "vibepop-api"
 main = "src/index.ts"
-compatibility_date = "2024-12-01"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 JWT_SECRET = "vibepop-dev-secret-change-in-production"
+AI_API_KEY = "sk-b37c3688968246ce872649521cce6943"
+AI_BASE_URL = "https://api.deepseek.com/v1"
 
+# Local dev uses persist mode, no need for real KV/R2 IDs
 [[kv_namespaces]]
 binding = "KV"
-id = "placeholder-kv-id"
-preview_id = "placeholder-kv-preview-id"
+id = "vibepop-kv-dev"
 
 [[r2_buckets]]
 binding = "R2"

@@ -1,159 +1,132 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { mockTemplates } from '../api/mockData';
+import Marquee from '../components/ui/Marquee';
+import { api } from '../api/client';
+import { useAuthStore } from '../stores/authStore';
 import type { Content, ContentType } from '../types';
 
-type CreateStage = 'input' | 'generating' | 'preview' | 'publish';
+type Stage = 'input' | 'generating' | 'preview' | 'publish';
 
-interface GenerationStep {
-  label: string;
-  done: boolean;
+interface Template {
+  id: string;
+  contentId: string;
+  title: string;
+  coverEmoji: string;
+  coverGradient: string;
 }
-
-const FALLBACK_CODE = (prompt: string) => {
-  const colors = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
-  const c1 = colors[Math.floor(Math.random() * colors.length)];
-  const c2 = colors[Math.floor(Math.random() * colors.length)];
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;background:linear-gradient(135deg,${c1},${c2});color:#fff;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;user-select:none}h2{font-size:22px;margin-bottom:8px;text-align:center;padding:0 20px}.emoji{font-size:72px;margin-bottom:16px;animation:bounce 2s infinite}p{font-size:13px;opacity:.7}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}.btn{margin-top:24px;padding:12px 28px;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.3);border-radius:25px;color:#fff;font-size:15px;cursor:pointer;backdrop-filter:blur(10px)}.btn:active{transform:scale(.95);background:rgba(255,255,255,.3)}</style></head><body><div class="emoji">✨</div><h2>${prompt.slice(0, 30)}</h2><p>由 VibePop AI 生成</p><button class="btn" onclick="this.textContent=['🎮','🎨','🎯','🎪','🎭','🎲'][Math.floor(Math.random()*6)]+' 再来一次！'">点击互动 🎉</button></body></html>`;
-};
 
 export default function CreatePage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { isLoggedIn } = useAuthStore();
   const remixContent = (location.state as { remix?: Content })?.remix;
 
-  const [prompt, setPrompt] = useState(
-    remixContent ? `基于【${remixContent.title}】进行改编，` : ''
-  );
-  const [stage, setStage] = useState<CreateStage>('input');
+  const [prompt, setPrompt] = useState(remixContent ? `基于【${remixContent.title}】进行改编，` : '');
+  const [stage, setStage] = useState<Stage>('input');
   const [generatedCode, setGeneratedCode] = useState('');
+  const [generatedMeta, setGeneratedMeta] = useState<{ title?: string; description?: string; type?: string; coverEmoji?: string; coverGradient?: string }>({});
   const [chatInput, setChatInput] = useState('');
-  const [steps, setSteps] = useState<GenerationStep[]>([]);
-  const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
+  const [statusMsg, setStatusMsg] = useState('');
+  const [templates, setTemplates] = useState<Template[]>([]);
 
-  // Publish state
   const [publishTitle, setPublishTitle] = useState('');
   const [publishDesc, setPublishDesc] = useState('');
   const [publishType, setPublishType] = useState<ContentType>('game');
-  const [publishTags, setPublishTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
 
-  const simulateGeneration = useCallback(async (userPrompt: string, isIteration = false) => {
-    setStage('generating');
-
-    const genSteps = isIteration
-      ? [
-          { label: `正在处理: ${userPrompt.slice(0, 25)}...`, done: false },
-          { label: '更新预览...', done: false },
-        ]
-      : [
-          { label: '生成游戏逻辑...', done: false },
-          { label: '设计视觉效果...', done: false },
-          { label: '添加交互反馈...', done: false },
-        ];
-
-    setSteps(genSteps);
-
-    for (let i = 0; i < genSteps.length; i++) {
-      await new Promise((r) => setTimeout(r, 600 + Math.random() * 400));
-      setSteps((prev) => prev.map((s, j) => (j <= i ? { ...s, done: true } : s)));
-    }
-
-    await new Promise((r) => setTimeout(r, 300));
-    setGeneratedCode(FALLBACK_CODE(userPrompt));
-    setStage('preview');
-
-    if (!isIteration) {
-      setChatHistory([
-        { role: 'user', text: userPrompt },
-        { role: 'ai', text: '内容已生成！还需要调整什么吗？可以告诉我改颜色、加音效、调难度...' },
-      ]);
-    } else {
-      setChatHistory((prev) => [
-        ...prev,
-        { role: 'user', text: userPrompt },
-        { role: 'ai', text: '已更新！还要继续调整吗？' },
-      ]);
-    }
+  useEffect(() => {
+    api.getTemplates().then(setTemplates).catch(() => {});
   }, []);
+
+  const generate = useCallback(async (userPrompt: string, existingCode?: string) => {
+    if (!isLoggedIn) {
+      navigate('/login');
+      return;
+    }
+    setStage('generating');
+    setStatusMsg('AI 正在创造...');
+    try {
+      const res = await api.ai.generate(userPrompt, existingCode);
+      setGeneratedCode(res.data.code);
+      if (res.data.title) setGeneratedMeta(res.data);
+      setStage('preview');
+    } catch (e: any) {
+      console.error('Generate error:', e);
+      setStatusMsg('生成失败: ' + (e.message || '未知错误'));
+      setTimeout(() => setStage('input'), 2000);
+    }
+  }, [isLoggedIn, navigate]);
 
   const handleSend = () => {
     if (!prompt.trim()) return;
-    simulateGeneration(prompt.trim());
+    generate(prompt.trim());
   };
 
   const handleChatSend = () => {
     if (!chatInput.trim()) return;
     const input = chatInput;
     setChatInput('');
-    simulateGeneration(input.trim(), true);
+    generate(input.trim(), generatedCode);
   };
 
-  const handleTemplateClick = (title: string) => {
-    const p = `基于【${title}】模板进行创作`;
-    setPrompt(p);
-    simulateGeneration(p);
+  const handleTemplateClick = (tmpl: Template) => {
+    setPrompt(`基于【${tmpl.title}】模板进行创作`);
+    generate(`基于【${tmpl.title}】模板进行创作`);
   };
 
   const goToPublish = () => {
-    setPublishTitle(prompt.slice(0, 30));
+    setPublishTitle(generatedMeta.title || prompt.slice(0, 30) || '我的作品');
+    setPublishDesc(generatedMeta.description || '');
+    setPublishType((generatedMeta.type as ContentType) || 'game');
     setStage('publish');
   };
 
   const handlePublish = async () => {
     if (!publishTitle.trim()) return;
     setStage('generating');
-    setSteps([{ label: '正在发布...', done: false }]);
-    await new Promise((r) => setTimeout(r, 1000));
-    setSteps([{ label: '发布成功！', done: true }]);
-    await new Promise((r) => setTimeout(r, 500));
-    navigate('/profile');
+    setStatusMsg('正在发布...');
+    try {
+      await api.contents.create({
+        title: publishTitle,
+        description: publishDesc,
+        type: publishType,
+        code: generatedCode,
+        auto_publish: true,
+      });
+      setStatusMsg('发布成功！');
+      setTimeout(() => navigate('/profile'), 1000);
+    } catch (e: any) {
+      setStatusMsg('发布失败: ' + (e.message || '未知错误'));
+      setTimeout(() => setStage('publish'), 2000);
+    }
   };
 
-  const addTag = () => {
-    const tag = tagInput.trim().replace(/^#/, '');
-    if (tag && !publishTags.includes(tag)) setPublishTags([...publishTags, tag]);
-    setTagInput('');
-  };
-
-  // --- Generating stage ---
   if (stage === 'generating') {
     return (
-      <div className="h-full flex flex-col items-center justify-center px-8">
-        <div className="text-4xl mb-6 animate-bounce">🤖</div>
-        <div className="text-lg font-semibold mb-6">AI 正在创造...</div>
-        <div className="w-full space-y-3">
-          {steps.map((step, i) => (
-            <div key={i} className="flex items-center gap-3 text-sm">
-              <span className={step.done ? 'text-green-400' : 'text-[var(--color-text-dim)] animate-pulse'}>
-                {step.done ? '✓' : '~'}
-              </span>
-              <span className={step.done ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-dim)]'}>
-                {step.label}
-              </span>
-            </div>
-          ))}
+      <div className="h-full flex flex-col items-center justify-center bg-bg" style={{ padding: '0 32px' }}>
+        <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center text-3xl" style={{ marginBottom: 32 }}>⚡</div>
+        <div className="text-lg font-semibold tracking-tight" style={{ marginBottom: 12 }}>{statusMsg}</div>
+        <div className="text-[13px] text-dim font-medium" style={{ marginBottom: 40 }}>通常需要几秒钟</div>
+        <div className="w-48 h-1 bg-muted rounded-full overflow-hidden">
+          <div className="h-full loading-bar" />
         </div>
       </div>
     );
   }
 
-  // --- Preview stage ---
   if (stage === 'preview') {
     return (
-      <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
-          <button onClick={() => setStage('input')} className="text-2xl">←</button>
-          <span className="text-sm font-medium">预览</span>
-          <button
-            onClick={goToPublish}
-            className="px-3 py-1.5 bg-gradient-to-br from-pink to-pink-dark rounded-2xl text-white text-xs font-medium"
-          >
+      <div className="h-full flex flex-col bg-bg">
+        <div className="flex items-center justify-between border-b border-border/50" style={{ padding: '12px 20px' }}>
+          <button onClick={() => setStage('input')} className="rounded-[var(--radius-sm)] bg-muted flex items-center justify-center text-muted-fg hover:bg-border hover:text-fg transition-all duration-200" style={{ width: 40, height: 40 }}>
+            ←
+          </button>
+          <span className="text-[14px] font-semibold">预览</span>
+          <button onClick={goToPublish} className="bg-accent text-accent-fg text-[13px] font-semibold rounded-[var(--radius-sm)] active:scale-95 transition-all" style={{ padding: '8px 20px' }}>
             发布 →
           </button>
         </div>
 
-        <div className="flex-1 relative bg-black">
+        <div className="flex-1 relative bg-bg">
           <iframe
             srcDoc={generatedCode}
             sandbox="allow-scripts"
@@ -162,30 +135,21 @@ export default function CreatePage() {
           />
         </div>
 
-        <div className="px-4 py-3 border-t border-[var(--color-border)] max-h-[200px] overflow-y-auto">
-          {/* Chat history */}
-          <div className="space-y-2 mb-3">
-            {chatHistory.slice(-4).map((msg, i) => (
-              <div key={i} className={`text-xs ${msg.role === 'ai' ? 'text-[var(--color-text-muted)]' : 'text-pink'}`}>
-                <span className="font-medium">{msg.role === 'ai' ? '🤖' : '你'}: </span>
-                {msg.text}
-              </div>
-            ))}
+        <div className="border-t border-border/50" style={{ padding: '16px 20px' }}>
+          <div className="bg-surface rounded-[var(--radius-sm)] text-[13px] text-muted-fg leading-relaxed" style={{ padding: 16, marginBottom: 12 }}>
+            ✦ 内容已生成！还想调整什么？可以说"改颜色"、"加音效"、"调难度"...
           </div>
-
-          <div className="flex gap-2">
+          <div className="flex" style={{ gap: 12 }}>
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleChatSend()}
-              placeholder="告诉AI你想怎么改..."
-              className="flex-1 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-3xl px-4 py-2.5 text-white text-sm outline-none focus:border-pink placeholder:text-[var(--color-text-dim)]"
+              placeholder="告诉 AI 你想怎么改..."
+              className="flex-1 bg-muted rounded-[var(--radius-sm)] text-[14px] text-fg outline-none focus:ring-1 focus:ring-accent placeholder:text-dim transition-all"
+              style={{ padding: '12px 16px' }}
             />
-            <button
-              onClick={handleChatSend}
-              className="w-10 h-10 bg-gradient-to-br from-pink to-pink-dark rounded-full text-white text-lg flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
-            >
-              ➤
+            <button onClick={handleChatSend} className="bg-accent text-accent-fg rounded-[var(--radius-sm)] flex items-center justify-center font-semibold active:scale-90 transition-all flex-shrink-0" style={{ width: 48, height: 48 }}>
+              →
             </button>
           </div>
         </div>
@@ -193,7 +157,6 @@ export default function CreatePage() {
     );
   }
 
-  // --- Publish stage ---
   if (stage === 'publish') {
     const categories: { value: ContentType; label: string }[] = [
       { value: 'game', label: '游戏' },
@@ -201,152 +164,120 @@ export default function CreatePage() {
       { value: 'generator', label: '生成器' },
       { value: 'other', label: '其他' },
     ];
-
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="flex items-center px-4 py-3 border-b border-[var(--color-border)]">
-          <button onClick={() => setStage('preview')} className="text-2xl">←</button>
-          <span className="flex-1 text-center text-sm font-medium">发布你的作品</span>
-          <div className="w-6" />
+      <div className="h-full overflow-y-auto bg-bg">
+        <div className="flex items-center border-b border-border/50" style={{ padding: '12px 20px' }}>
+          <button onClick={() => setStage('preview')} className="rounded-[var(--radius-sm)] bg-muted flex items-center justify-center text-muted-fg hover:bg-border hover:text-fg transition-all duration-200" style={{ width: 40, height: 40 }}>
+            ←
+          </button>
+          <span className="flex-1 text-center text-[14px] font-semibold">发布作品</span>
+          <div style={{ width: 40 }} />
         </div>
-
-        <div className="p-5 space-y-5">
-          <div className="aspect-video rounded-xl overflow-hidden relative">
-            <iframe
-              srcDoc={generatedCode}
-              sandbox="allow-scripts"
-              className="w-full h-full border-0 pointer-events-none"
-              title="cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        <div style={{ padding: 24 }}>
+          <div className="aspect-video overflow-hidden relative rounded-[var(--radius-md)] bg-card" style={{ marginBottom: 24 }}>
+            <iframe srcDoc={generatedCode} sandbox="allow-scripts" className="w-full h-full border-0 pointer-events-none" title="cover" />
           </div>
-
-          <div>
-            <label className="text-xs text-[var(--color-text-muted)] mb-1.5 block">标题 *</label>
-            <input
-              value={publishTitle}
-              onChange={(e) => setPublishTitle(e.target.value)}
-              placeholder="给作品起个名字"
-              className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-pink placeholder:text-[var(--color-text-dim)]"
-            />
+          <div style={{ marginBottom: 24 }}>
+            <label className="text-[13px] text-dim font-semibold block" style={{ marginBottom: 10 }}>标题 *</label>
+            <input value={publishTitle} onChange={(e) => setPublishTitle(e.target.value)} placeholder="给作品起个名字"
+              className="w-full bg-muted rounded-[var(--radius-sm)] text-base font-semibold text-fg outline-none focus:ring-1 focus:ring-accent placeholder:text-dim transition-all"
+              style={{ padding: '14px 16px' }} />
           </div>
-
-          <div>
-            <label className="text-xs text-[var(--color-text-muted)] mb-1.5 block">描述</label>
-            <textarea
-              value={publishDesc}
-              onChange={(e) => setPublishDesc(e.target.value)}
-              placeholder="介绍一下你的作品..."
-              rows={3}
-              className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-xl px-4 py-3 text-white text-sm resize-none outline-none focus:border-pink placeholder:text-[var(--color-text-dim)]"
-            />
+          <div style={{ marginBottom: 24 }}>
+            <label className="text-[13px] text-dim font-semibold block" style={{ marginBottom: 10 }}>描述</label>
+            <textarea value={publishDesc} onChange={(e) => setPublishDesc(e.target.value)} placeholder="介绍一下你的作品..." rows={2}
+              className="w-full bg-muted rounded-[var(--radius-sm)] text-[14px] text-fg resize-none outline-none focus:ring-1 focus:ring-accent placeholder:text-dim leading-relaxed transition-all"
+              style={{ padding: '14px 16px' }} />
           </div>
-
-          <div>
-            <label className="text-xs text-[var(--color-text-muted)] mb-1.5 block">分类 *</label>
-            <div className="flex gap-2">
+          <div style={{ marginBottom: 24 }}>
+            <label className="text-[13px] text-dim font-semibold block" style={{ marginBottom: 10 }}>分类 *</label>
+            <div className="flex" style={{ gap: 10 }}>
               {categories.map((cat) => (
-                <button
-                  key={cat.value}
-                  onClick={() => setPublishType(cat.value)}
-                  className={`px-3.5 py-2 rounded-xl text-xs transition-all ${
+                <button key={cat.value} onClick={() => setPublishType(cat.value)}
+                  className={`flex-1 text-[13px] font-semibold rounded-[var(--radius-sm)] transition-all duration-200 ${
                     publishType === cat.value
-                      ? 'bg-gradient-to-br from-pink to-pink-dark text-white'
-                      : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)]'
+                      ? 'bg-accent text-accent-fg'
+                      : 'bg-muted text-muted-fg hover:bg-border hover:text-fg'
                   }`}
-                >
+                  style={{ padding: '12px 0' }}>
                   {cat.label}
                 </button>
               ))}
             </div>
           </div>
-
-          <div>
-            <label className="text-xs text-[var(--color-text-muted)] mb-1.5 block">标签（可选）</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {publishTags.map((tag) => (
-                <span key={tag} className="px-2.5 py-1 bg-[var(--color-bg-card)] rounded-lg text-xs text-pink flex items-center gap-1">
-                  #{tag}
-                  <button onClick={() => setPublishTags(publishTags.filter((t) => t !== tag))} className="text-[var(--color-text-dim)]">×</button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addTag()}
-                placeholder="#添加标签"
-                className="flex-1 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-pink placeholder:text-[var(--color-text-dim)]"
-              />
-              <button onClick={addTag} className="px-3 py-2.5 bg-[var(--color-bg-card)] rounded-xl text-sm text-pink">
-                + 添加
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={handlePublish}
-            disabled={!publishTitle.trim()}
-            className="w-full py-3.5 bg-gradient-to-br from-pink to-pink-dark rounded-3xl text-white text-sm font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
-          >
-            发 布
+          <button onClick={handlePublish} disabled={!publishTitle.trim()}
+            className="w-full bg-accent text-accent-fg text-[15px] font-semibold rounded-[var(--radius-md)] disabled:opacity-30 active:scale-[0.98] hover:brightness-110 transition-all duration-200"
+            style={{ padding: '14px 0' }}>
+            发布
           </button>
         </div>
       </div>
     );
   }
 
-  // --- Input stage ---
+  // Input stage
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-5 border-b border-[var(--color-border)]">
+    <div className="h-full flex flex-col bg-bg">
+      {/* Header */}
+      <div style={{ padding: '18px 20px 14px' }}>
+        <h1 className="text-[clamp(1.75rem,8vw,2.5rem)] font-bold tracking-tight leading-none">
+          创<span className="text-accent">作</span>
+        </h1>
+        <p className="text-[13px] text-dim font-medium" style={{ marginTop: 7 }}>描述你的想法，AI 帮你实现</p>
+      </div>
+
+      {/* Input area */}
+      <div style={{ padding: '0 20px 14px' }}>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder={'描述你想创造什么...\n例如：做一个弹球游戏，球用我的脸'}
+          placeholder={'描述你想创造什么...\n例如：做一个弹球游戏\n例如：做一个毒舌点评生成器\n例如：做一个生日贺卡'}
           rows={3}
-          className="w-full min-h-[80px] bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-xl p-3 text-white text-sm resize-none outline-none focus:border-pink placeholder:text-[var(--color-text-dim)]"
+          className="w-full bg-muted rounded-[var(--radius-md)] text-[14px] text-fg resize-none outline-none focus:ring-1 focus:ring-accent placeholder:text-dim leading-relaxed transition-all"
+          style={{ minHeight: 120, padding: 16 }}
         />
-        <button
-          onClick={handleSend}
-          disabled={!prompt.trim()}
-          className="mt-3 w-full py-3 bg-gradient-to-br from-pink to-pink-dark rounded-3xl text-white text-sm font-semibold active:scale-[0.98] transition-transform disabled:opacity-40"
-        >
-          发送给 AI ➤
+        <button onClick={handleSend} disabled={!prompt.trim()}
+          className="w-full bg-accent text-accent-fg text-[15px] font-semibold rounded-[var(--radius-md)] active:scale-[0.98] hover:brightness-110 transition-all duration-200 disabled:opacity-30 flex items-center justify-center gap-2"
+          style={{ marginTop: 8, padding: '12px 0' }}>
+          ⚡ 发送给 AI
         </button>
       </div>
 
-      <div className="flex-1 p-4 overflow-y-auto">
-        <div className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] mb-3">
-          📋 推荐模板（一键 Remix）
-        </div>
+      {/* Templates */}
+      <div className="flex-1 overflow-y-auto">
+        {templates.length > 0 && (
+          <div className="border-y border-border/30" style={{ padding: '6px 0', marginBottom: 14 }}>
+            <Marquee speed={40}>
+              <span className="text-[12px] font-semibold text-dim mx-5">★ 热门模板</span>
+              {templates.map((tmpl) => (
+                <span key={tmpl.id} className="text-[12px] font-semibold text-muted-fg mx-5">
+                  {tmpl.coverEmoji} {tmpl.title}
+                </span>
+              ))}
+            </Marquee>
+          </div>
+        )}
 
-        <div className="grid grid-cols-2 gap-3">
-          {mockTemplates.map((tmpl) => (
-            <div
-              key={tmpl.id}
-              onClick={() => handleTemplateClick(tmpl.title)}
-              className="bg-[var(--color-bg-card)] rounded-xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <div
-                className="aspect-square flex items-center justify-center text-4xl"
-                style={{ background: tmpl.coverGradient }}
-              >
-                {tmpl.coverEmoji}
-              </div>
-              <div className="p-2.5 text-center">
-                <div className="text-[13px] font-medium mb-1.5">{tmpl.title}</div>
-                <div className="text-[11px] text-pink flex items-center justify-center gap-1">
-                  🔄 一键 Remix
+        <div style={{ padding: '0 20px 16px' }}>
+          <div className="text-[13px] text-dim font-semibold" style={{ marginBottom: 8 }}>
+            ★ 热门模板
+          </div>
+          <div className="grid grid-cols-2" style={{ gap: 10 }}>
+            {templates.map((tmpl) => (
+              <div key={tmpl.id} onClick={() => handleTemplateClick(tmpl)}
+                className="group bg-card rounded-[var(--radius-md)] overflow-hidden cursor-pointer transition-all duration-300 hover:ring-1 hover:ring-accent/40 active:scale-[0.98]">
+                <div className="aspect-square flex items-center justify-center text-4xl relative" style={{ background: tmpl.coverGradient }}>
+                  <span className="group-hover:scale-110 transition-transform duration-300">{tmpl.coverEmoji}</span>
+                </div>
+                <div className="text-center" style={{ padding: 14 }}>
+                  <div className="text-[13px] font-semibold group-hover:text-accent transition-colors" style={{ marginBottom: 4 }}>{tmpl.title}</div>
+                  <div className="text-[12px] text-dim font-medium group-hover:text-accent/60 transition-colors">
+                    ↻ Remix
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="text-center py-4 text-[var(--color-text-muted)] text-[13px] cursor-pointer hover:text-pink transition-colors">
-          查看更多模板 →
+            ))}
+          </div>
         </div>
       </div>
     </div>
