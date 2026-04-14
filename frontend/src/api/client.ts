@@ -1,20 +1,31 @@
 import { useAuthStore } from '../stores/authStore';
 
-const BASE_URL = '/api';
+const BASE_URL = import.meta.env.PROD
+  ? 'https://vibepop-api.zyhh1611054604.workers.dev/api'
+  : '/api';
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit & { timeout?: number } = {}): Promise<T> {
   const token = useAuthStore.getState().token;
+  const { timeout, ...fetchOptions } = options;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...((options.headers as Record<string, string>) || {}),
+    ...((fetchOptions.headers as Record<string, string>) || {}),
   };
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  let signal = fetchOptions.signal;
+  let controller: AbortController | undefined;
+  if (timeout && !signal) {
+    controller = new AbortController();
+    signal = controller.signal;
+    setTimeout(() => controller!.abort(), timeout);
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, { ...fetchOptions, headers, signal });
   const data = await res.json();
 
   if (!res.ok) {
@@ -22,6 +33,59 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   return data;
+}
+
+async function streamRequest(
+  path: string,
+  body: Record<string, unknown>,
+  onChunk: (text: string) => void,
+): Promise<string> {
+  const token = useAuthStore.getState().token;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error((data as any).error || `Request failed: ${res.status}`);
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let accumulated = '';
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data: ')) continue;
+      const payload = trimmed.slice(6);
+      if (payload === '[DONE]') continue;
+      try {
+        const parsed = JSON.parse(payload);
+        if (parsed.content) {
+          accumulated += parsed.content;
+          onChunk(accumulated);
+        }
+      } catch {
+        // skip
+      }
+    }
+  }
+
+  return accumulated;
 }
 
 export const api = {
@@ -79,13 +143,27 @@ export const api = {
   },
 
   ai: {
+    generateStream: (
+      prompt: string,
+      existingCode: string | undefined,
+      onChunk: (text: string) => void,
+    ): Promise<string> => {
+      return streamRequest('/ai/generate', { prompt, existingCode }, onChunk);
+    },
+    remixStream: (
+      contentId: string,
+      prompt: string,
+      onChunk: (text: string) => void,
+    ): Promise<string> => {
+      return streamRequest('/ai/remix', { contentId, prompt }, onChunk);
+    },
     generate: (prompt: string, existingCode?: string) =>
       request<{ success: boolean; data: { code: string; title?: string; description?: string; type?: string; coverEmoji?: string; coverGradient?: string } }>(
-        '/ai/generate', { method: 'POST', body: JSON.stringify({ prompt, existingCode }) }
+        '/ai/generate', { method: 'POST', body: JSON.stringify({ prompt, existingCode }), timeout: 90000 }
       ),
     remix: (contentId: string, prompt: string) =>
       request<{ success: boolean; data: { code: string; remixFromId: string } }>(
-        '/ai/remix', { method: 'POST', body: JSON.stringify({ contentId, prompt }) }
+        '/ai/remix', { method: 'POST', body: JSON.stringify({ contentId, prompt }), timeout: 90000 }
       ),
   },
 

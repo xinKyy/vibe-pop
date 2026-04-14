@@ -1,33 +1,137 @@
 import type { Env } from '../types';
 
-const SYSTEM_PROMPT = `你是一位为 VibePop 平台生成可视化内容的 AI 编辑器。用户会输入主题、文案或图片素材，你需要直接输出一个完整的、可运行的单一 HTML 文件（内联样式，无外部 CSS/JS 依赖）。
+const SYSTEM_PROMPT = `你是VibePop平台的AI内容生成器。根据用户输入直接输出一个完整可运行的单HTML文件（内联CSS/JS，无外部依赖）。
 
-## 硬性技术约束
+要求：
+- 移动端优先，基准宽度375px，max-width:100vw，禁止水平滚动
+- 用Flexbox/Grid布局，间距用rem/%
+- 字体>=14px，触控区>=44px
+- 动画简洁流畅，视觉精美
+- 只输出HTML代码，以<!DOCTYPE html>开头，不要任何解释文字`;
 
-### 画布与视口
-- 基准画布宽度：375px。
-- 所有元素最大宽度不得超过 100vw，禁止出现水平滚动条。
-- 内容高度不限，支持垂直滚动，但核心信息在 844px 高度（iPhone 14）内必须可见或具备明确的滚动暗示。
+function buildMessages(prompt: string, existingCode: string | null) {
+  const messages: { role: string; content: string }[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+  ];
+  if (existingCode) {
+    messages.push({
+      role: 'user',
+      content: `Here is the existing code:\n\`\`\`html\n${existingCode}\n\`\`\`\n\nPlease modify it based on this request: ${prompt}`,
+    });
+  } else {
+    messages.push({ role: 'user', content: prompt });
+  }
+  return messages;
+}
 
-### 响应式规则（Mobile-First）
-- 以移动端为默认样式，桌面端使用 @media (min-width: 768px) 做适度放大。
-- 布局只用 Flexbox 或 CSS Grid，移动端禁止 float 和多列布局。
-- 间距优先使用 rem 和 %，细线/边框可用 px，但容器间距禁用大段固定像素值。
-- 任何可点击元素在 375px 下的最小触控区域不得低于 44×44px。
+export function generateContentStream(
+  prompt: string,
+  existingCode: string | null,
+  env: Env
+): ReadableStream {
+  const apiKey = env.AI_API_KEY;
+  const baseUrl = env.AI_BASE_URL || 'https://api.deepseek.com/v1';
 
-### 代码规范
-- 输出必须是单一 HTML 文件，<style> 标签内联在 <head> 中。
-- 图片必须自带 width: 100%; height: auto; display: block; object-fit: cover/contain。
-- 禁止用绝对定位承载核心内容（装饰性元素除外）。
-- 移动端字体不得小于 14px。
-- 动画必须包裹在 @media (prefers-reduced-motion: no-preference) 内。
+  if (!apiKey) {
+    const fallback = generateFallbackContent(prompt);
+    return new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: fallback })}\n\n`));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+  }
 
-### 兼容性
-- 只支持竖屏。如果检测到用户要求横屏内容，自动将其适配为竖屏布局并重排元素。
-- 避免使用过于前卫的 CSS 属性（如 container-queries、@layer），优先使用广泛支持的语法。
+  const messages = buildMessages(prompt, existingCode);
+  const url = `${baseUrl}/chat/completions`;
+  console.log('[AI Stream] Calling:', url, 'model: deepseek-chat');
 
-## 输出格式
-你的回复必须仅包含可运行的 HTML 代码，以 <!DOCTYPE html> 开头。不要在代码块外添加任何解释文字。`;
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+
+  (async () => {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages,
+          max_tokens: 4096,
+          temperature: 0.7,
+          stream: true,
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        const errorText = await response.text().catch(() => 'unknown');
+        console.error('[AI Stream] API error:', response.status, errorText);
+        const fallback = generateFallbackContent(prompt);
+        await writer.write(encoder.encode(`data: ${JSON.stringify({ content: fallback })}\n\n`));
+        await writer.write(encoder.encode('data: [DONE]\n\n'));
+        await writer.close();
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const payload = trimmed.slice(6);
+
+          if (payload === '[DONE]') {
+            await writer.write(encoder.encode('data: [DONE]\n\n'));
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(payload);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              await writer.write(encoder.encode(`data: ${JSON.stringify({ content: delta })}\n\n`));
+            }
+          } catch {
+            // skip malformed chunks
+          }
+        }
+      }
+
+      if (!buffer.includes('[DONE]')) {
+        await writer.write(encoder.encode('data: [DONE]\n\n'));
+      }
+      await writer.close();
+    } catch (error: any) {
+      console.error('[AI Stream] Error:', error?.message || error);
+      try {
+        const fallback = generateFallbackContent(prompt);
+        await writer.write(encoder.encode(`data: ${JSON.stringify({ content: fallback })}\n\n`));
+        await writer.write(encoder.encode('data: [DONE]\n\n'));
+        await writer.close();
+      } catch {
+        await writer.abort();
+      }
+    }
+  })();
+
+  return readable;
+}
 
 export async function generateContent(
   prompt: string,
@@ -42,24 +146,9 @@ export async function generateContent(
   }
 
   try {
-    const messages: { role: string; content: string }[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
-    ];
-
-    if (existingCode) {
-      messages.push({
-        role: 'user',
-        content: `Here is the existing code:\n\`\`\`html\n${existingCode}\n\`\`\`\n\nPlease modify it based on this request: ${prompt}`,
-      });
-    } else {
-      messages.push({ role: 'user', content: prompt });
-    }
-
+    const messages = buildMessages(prompt, existingCode);
     const url = `${baseUrl}/chat/completions`;
     console.log('[AI] Calling:', url, 'model: deepseek-chat');
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -70,13 +159,10 @@ export async function generateContent(
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages,
-        max_tokens: 8192,
+        max_tokens: 4096,
         temperature: 0.7,
       }),
-      signal: controller.signal,
     });
-
-    clearTimeout(timeout);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'unknown');

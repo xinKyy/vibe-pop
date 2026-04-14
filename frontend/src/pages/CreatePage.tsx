@@ -24,7 +24,7 @@ export default function CreatePage() {
   const [prompt, setPrompt] = useState(remixContent ? `基于【${remixContent.title}】进行改编，` : '');
   const [stage, setStage] = useState<Stage>('input');
   const [generatedCode, setGeneratedCode] = useState('');
-  const [generatedMeta, setGeneratedMeta] = useState<{ title?: string; description?: string; type?: string; coverEmoji?: string; coverGradient?: string }>({});
+  const [generatedMeta] = useState<{ title?: string; description?: string; type?: string; coverEmoji?: string; coverGradient?: string }>({});
   const [chatInput, setChatInput] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -44,10 +44,22 @@ export default function CreatePage() {
     }
     setStage('generating');
     setStatusMsg('AI 正在创造...');
+    setGeneratedCode('');
     try {
-      const res = await api.ai.generate(userPrompt, existingCode);
-      setGeneratedCode(res.data.code);
-      if (res.data.title) setGeneratedMeta(res.data);
+      const finalCode = await api.ai.generateStream(
+        userPrompt,
+        existingCode,
+        (partialCode) => {
+          setGeneratedCode(partialCode);
+          setStatusMsg(`AI 正在生成... (${partialCode.length} 字符)`);
+        },
+      );
+
+      let code = finalCode.trim();
+      const htmlMatch = code.match(/```html\n?([\s\S]*?)```/);
+      if (htmlMatch) code = htmlMatch[1].trim();
+
+      setGeneratedCode(code);
       setStage('preview');
     } catch (e: any) {
       console.error('Generate error:', e);
@@ -64,8 +76,9 @@ export default function CreatePage() {
   const handleChatSend = () => {
     if (!chatInput.trim()) return;
     const input = chatInput;
+    const currentCode = generatedCode;
     setChatInput('');
-    generate(input.trim(), generatedCode);
+    generate(input.trim(), currentCode);
   };
 
   const handleTemplateClick = (tmpl: Template) => {
@@ -102,12 +115,25 @@ export default function CreatePage() {
 
   if (stage === 'generating') {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-bg" style={{ padding: '0 32px' }}>
-        <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center text-3xl" style={{ marginBottom: 32 }}>⚡</div>
-        <div className="text-lg font-semibold tracking-tight" style={{ marginBottom: 12 }}>{statusMsg}</div>
-        <div className="text-[13px] text-dim font-medium" style={{ marginBottom: 40 }}>通常需要几秒钟</div>
-        <div className="w-48 h-1 bg-muted rounded-full overflow-hidden">
-          <div className="h-full loading-bar" />
+      <div className="h-full flex flex-col bg-bg">
+        <div className="flex items-center justify-center border-b border-border/50" style={{ padding: '14px 20px', gap: 8 }}>
+          <div className="w-5 h-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+          <span className="text-[13px] font-semibold text-dim">{statusMsg}</span>
+        </div>
+        <div className="flex-1 relative">
+          {generatedCode ? (
+            <iframe
+              srcDoc={generatedCode}
+              sandbox="allow-scripts"
+              className="w-full h-full border-0"
+              title="generating-preview"
+            />
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center" style={{ padding: '0 32px' }}>
+              <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center text-3xl" style={{ marginBottom: 32 }}>⚡</div>
+              <div className="text-[13px] text-dim font-medium">等待 AI 响应...</div>
+            </div>
+          )}
         </div>
       </div>
     );

@@ -22,14 +22,14 @@ export default function BottomNav() {
           key={tab.path}
           onClick={() => navigate(tab.path)}
           className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all duration-200 ${
-            tab.isCenter
+            'isCenter' in tab
               ? ''
               : isActive(tab.path)
                 ? 'text-accent'
                 : 'text-dim hover:text-muted-fg'
           }`}
         >
-          {tab.isCenter ? (
+          {'isCenter' in tab ? (
             <div className="w-10 h-10 rounded-[var(--radius-md)] bg-accent text-accent-fg flex items-center justify-center text-xl font-bold hover:brightness-110 active:scale-95 transition-all duration-200">
               {tab.icon}
             </div>

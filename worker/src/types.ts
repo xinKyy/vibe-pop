@@ -1,6 +1,6 @@
 export interface Env {
   KV: KVNamespace;
-  R2: R2Bucket;
+  R2?: R2Bucket;
   JWT_SECRET: string;
   AI_API_KEY?: string;
   AI_BASE_URL?: string;

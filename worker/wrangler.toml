@@ -3,16 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
-[vars]
-JWT_SECRET = "vibepop-dev-secret-change-in-production"
-AI_API_KEY = "sk-b37c3688968246ce872649521cce6943"
-AI_BASE_URL = "https://api.deepseek.com/v1"
+# Secrets (JWT_SECRET, AI_API_KEY, AI_BASE_URL) are set via `wrangler secret put`
 
-# Local dev uses persist mode, no need for real KV/R2 IDs
 [[kv_namespaces]]
 binding = "KV"
-id = "vibepop-kv-dev"
+id = "a1938fdf04194d9d82eb732cd6e05427"
 
-[[r2_buckets]]
-binding = "R2"
-bucket_name = "vibepop-assets"
+# R2 is declared but not actively used yet; enable in Dashboard first if needed
+# [[r2_buckets]]
+# binding = "R2"
+# bucket_name = "vibepop-assets"
