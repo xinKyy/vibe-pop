@@ -9,9 +9,13 @@ import ShareSheet from '../social/ShareSheet';
 interface FeedItemProps {
   content: Content;
   onRemix?: (content: Content) => void;
+  /** 底部需要留出的空间，例如 Feed 底部手势切换区 */
+  bottomInset?: number;
+  /** 是否响应 iframe 内部交互（拖动切换时置为 false 以避免误触） */
+  interactive?: boolean;
 }
 
-export default function FeedItem({ content, onRemix }: FeedItemProps) {
+export default function FeedItem({ content, onRemix, bottomInset = 0, interactive = true }: FeedItemProps) {
   const navigate = useNavigate();
   const { isLiked, isFavorited, isFollowing, toggleLike, toggleFavorite, toggleFollow } = useSocialStore();
 
@@ -60,7 +64,7 @@ export default function FeedItem({ content, onRemix }: FeedItemProps) {
   return (
     <>
       <div
-        className="h-full min-h-full snap-start snap-always relative flex items-center justify-center overflow-hidden bg-bg"
+        className="h-full min-h-full relative flex items-center justify-center overflow-hidden bg-bg"
         style={{ background: hasCode ? '#0A0A0C' : content.coverGradient }}
         onClick={handleTap}
       >
@@ -70,7 +74,7 @@ export default function FeedItem({ content, onRemix }: FeedItemProps) {
             sandbox="allow-scripts"
             className="w-full h-full border-0"
             title={content.title}
-            style={{ pointerEvents: 'auto' }}
+            style={{ pointerEvents: interactive ? 'auto' : 'none' }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-8xl select-none">
@@ -87,7 +91,7 @@ export default function FeedItem({ content, onRemix }: FeedItemProps) {
         )}
 
         {/* Side actions */}
-        <div className="absolute z-10 flex flex-col" style={{ right: 12, bottom: 100, gap: 10 }}>
+        <div className="absolute z-10 flex flex-col" style={{ right: 12, bottom: 100 + bottomInset, gap: 10 }}>
           <SideAction
             label="♥"
             count={formatCount(likeCount)}
@@ -117,9 +121,10 @@ export default function FeedItem({ content, onRemix }: FeedItemProps) {
 
         {/* Bottom info overlay */}
         <div
-          className="absolute bottom-0 left-0 z-10 pointer-events-auto"
+          className="absolute left-0 z-10 pointer-events-auto"
           style={{
             right: 0,
+            bottom: bottomInset,
             padding: '20px 16px 14px',
             background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 60%, transparent 100%)',
           }}
