@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { api } from '../api/client';
+import Logo from '../components/ui/Logo';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -57,6 +58,7 @@ export default function LoginPage() {
 
       <div className="flex-1 flex flex-col px-6 pt-5">
         <div className="mb-12">
+          <Logo size={72} className="mb-5" />
           <div className="text-[clamp(2rem,10vw,3rem)] font-bold tracking-tight leading-tight mb-3">
             <span className="text-accent">登录</span> VibePop
           </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Marquee from '../components/ui/Marquee';
+import Logo from '../components/ui/Logo';
 import PreviewWorkspace from '../components/create/PreviewWorkspace';
 import ExternalAIPanel from '../components/create/ExternalAIPanel';
 import { api } from '../api/client';
@@ -158,7 +159,7 @@ export default function CreatePage() {
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center" style={{ padding: '0 32px' }}>
-              <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center text-3xl" style={{ marginBottom: 32 }}>⚡</div>
+              <Logo size={72} className="mb-8 animate-pulse" />
               <div className="text-[13px] text-dim font-medium">等待 AI 响应...</div>
             </div>
           )}
@@ -283,7 +284,7 @@ export default function CreatePage() {
 
       {/* 创作方式切换 */}
       <div style={{ padding: '0 20px 10px' }}>
-        <div className="grid grid-cols-2 bg-muted rounded-[var(--radius-sm)] p-1 gap-1">
+        <div style={{ padding: '5px' }} className="grid grid-cols-2 bg-muted rounded-[var(--radius-sm)] p-1 gap-1">
           <ModeTab
             active={createMode === 'builtin'}
             onClick={() => setCreateMode('builtin')}

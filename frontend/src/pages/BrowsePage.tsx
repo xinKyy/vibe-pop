@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Marquee from '../components/ui/Marquee';
+import Logo from '../components/ui/Logo';
 import ContentCard from '../components/content/ContentCard';
 import { api } from '../api/client';
 import type { Content } from '../types';
@@ -46,11 +47,14 @@ export default function BrowsePage() {
     <div className="h-full flex flex-col bg-bg">
       <div className="shrink-0">
         {/* Title */}
-        <div style={{ padding: '12px 20px 8px' }}>
-          <h1 className="text-[clamp(1.75rem,8vw,2.5rem)] font-bold tracking-tight leading-none">
-            Vibe<span className="text-accent">Pop</span>
-          </h1>
-          <p className="text-[13px] text-dim font-medium" style={{ marginTop: 4 }}>AI 驱动的互动内容社区</p>
+        <div className="flex items-center gap-3" style={{ padding: '12px 20px 8px' }}>
+          <Logo size={40} />
+          <div>
+            <h1 className="text-[clamp(1.75rem,8vw,2.5rem)] font-bold tracking-tight leading-none">
+              Vibe<span className="text-accent">Pop</span>
+            </h1>
+            <p className="text-[13px] text-dim font-medium" style={{ marginTop: 4 }}>AI 驱动的互动内容社区</p>
+          </div>
         </div>
 
         {/* Marquee */}
