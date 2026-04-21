@@ -39,7 +39,8 @@ export default function LoginPage() {
     try {
       const res = await api.auth.login(email, code);
       login(res.data.user, res.data.token);
-      navigate('/profile');
+      const needsOnboarding = res.data.isNewUser || !res.data.user?.onboarded;
+      navigate(needsOnboarding ? '/onboarding' : '/profile', { replace: true });
     } catch (e: any) {
       setError(e.message || t('login.errors.login'));
     } finally {

@@ -25,6 +25,55 @@ social.get('/users/me/social-state', authMiddleware, async (c) => {
   });
 });
 
+/**
+ * 按 id 列表批量取 published 内容，保留列表中的原顺序（最近点赞/收藏在前）。
+ */
+async function hydrateContentsByIds(kv: Env['KV'], ids: string[]): Promise<Content[]> {
+  const items: Content[] = [];
+  for (const cid of ids) {
+    const data = await kv.get(`contents:${cid}`);
+    if (!data) continue;
+    const content: Content = JSON.parse(data);
+    if (content.status === 'published') items.push(content);
+  }
+  return items;
+}
+
+// --- My likes / favorites list (for profile page) ---
+social.get('/users/me/likes', authMiddleware, async (c) => {
+  const userId = c.get('userId' as never) as string;
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '20');
+
+  const json = await c.env.KV.get(`users:${userId}:likes`);
+  const allIds: string[] = json ? JSON.parse(json) : [];
+  const start = (page - 1) * limit;
+  const pageIds = allIds.slice(start, start + limit);
+  const items = await hydrateContentsByIds(c.env.KV, pageIds);
+
+  return c.json({
+    success: true,
+    data: { items, total: allIds.length, page, limit, hasMore: start + limit < allIds.length },
+  });
+});
+
+social.get('/users/me/favorites', authMiddleware, async (c) => {
+  const userId = c.get('userId' as never) as string;
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '20');
+
+  const json = await c.env.KV.get(`users:${userId}:favorites`);
+  const allIds: string[] = json ? JSON.parse(json) : [];
+  const start = (page - 1) * limit;
+  const pageIds = allIds.slice(start, start + limit);
+  const items = await hydrateContentsByIds(c.env.KV, pageIds);
+
+  return c.json({
+    success: true,
+    data: { items, total: allIds.length, page, limit, hasMore: start + limit < allIds.length },
+  });
+});
+
 // --- Like ---
 social.post('/contents/:id/like', authMiddleware, async (c) => {
   const userId = c.get('userId' as never) as string;

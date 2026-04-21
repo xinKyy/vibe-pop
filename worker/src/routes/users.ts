@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, User, Content } from '../types';
 import { authMiddleware, optionalAuth } from '../middleware/auth';
-import { getUserById } from '../services/users';
+import { getUserById, isValidUsername } from '../services/users';
 
 const users = new Hono<{ Bindings: Env }>();
 
@@ -36,6 +36,56 @@ users.put('/me', authMiddleware, async (c) => {
   if (typeof body.bio === 'string') updates.bio = body.bio.slice(0, 140);
 
   const updated: User = { ...user, ...updates };
+  await c.env.KV.put(`users:${userId}`, JSON.stringify(updated));
+
+  return c.json({ success: true, data: updated });
+});
+
+/**
+ * 新用户引导：一次性设置最终 username + displayName（可选 avatar）。
+ * 仅允许 onboarded === false 的用户调用，成功后会把旧 placeholder username 索引迁移到新 username。
+ */
+users.post('/me/onboarding', authMiddleware, async (c) => {
+  const userId = c.get('userId' as never) as string;
+  const user = await getUserById(c.env.KV, userId);
+  if (!user) return c.json({ success: false, error: 'User not found' }, 404);
+
+  if (user.onboarded) {
+    return c.json({ success: false, error: 'ONBOARDING_ALREADY_DONE' }, 409);
+  }
+
+  const body = await c.req.json<{ username?: string; displayName?: string; avatar?: string }>();
+  const username = (body.username || '').trim().toLowerCase();
+  const displayName = (body.displayName || '').trim();
+
+  if (!isValidUsername(username)) {
+    return c.json({ success: false, error: 'INVALID_USERNAME' }, 400);
+  }
+  if (displayName.length < 1 || displayName.length > 20) {
+    return c.json({ success: false, error: 'INVALID_DISPLAY_NAME' }, 400);
+  }
+
+  // 允许用户保留占位 username（它等于 userId），其它情况需要检查冲突。
+  if (username !== user.username) {
+    const taken = await c.env.KV.get(`users:username:${username}`);
+    if (taken && taken !== userId) {
+      return c.json({ success: false, error: 'USERNAME_TAKEN' }, 409);
+    }
+  }
+
+  // 迁移 username 索引：删旧写新。
+  if (username !== user.username) {
+    await c.env.KV.delete(`users:username:${user.username}`);
+    await c.env.KV.put(`users:username:${username}`, userId);
+  }
+
+  const updated: User = {
+    ...user,
+    username,
+    displayName,
+    avatar: typeof body.avatar === 'string' && body.avatar ? body.avatar.slice(0, 8) : user.avatar,
+    onboarded: true,
+  };
   await c.env.KV.put(`users:${userId}`, JSON.stringify(updated));
 
   return c.json({ success: true, data: updated });

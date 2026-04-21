@@ -53,12 +53,30 @@ export async function getUserById(kv: KVNamespace, userId: string): Promise<User
   if (!raw) return null;
   const parsed = JSON.parse(raw) as Partial<User> & { handle?: string };
 
-  // 已是新结构
-  if (parsed.displayName && parsed.username && !('handle' in parsed)) {
+  // 旧结构的唯一标志：带 `handle` 字段。没有 handle 就当作新结构。
+  // 注意：新注册用户在未完成 onboarding 时 displayName 可能为 ''，不能用 displayName 真假来判定结构。
+  if (!('handle' in parsed) && typeof parsed.username === 'string' && parsed.username) {
+    // 已是新结构；兼容没有 onboarded 字段的老数据（迁移前留下的），默认视为已完成引导。
+    if (typeof parsed.onboarded !== 'boolean') {
+      const patched: User = {
+        id: parsed.id!,
+        email: parsed.email!,
+        username: parsed.username,
+        displayName: parsed.displayName ?? '',
+        avatar: parsed.avatar || '😀',
+        bio: parsed.bio || '',
+        followingCount: parsed.followingCount || 0,
+        followersCount: parsed.followersCount || 0,
+        createdAt: parsed.createdAt || new Date().toISOString(),
+        onboarded: true,
+      };
+      await kv.put(`users:${userId}`, JSON.stringify(patched));
+      return patched;
+    }
     return parsed as User;
   }
 
-  // 迁移：把旧 handle 作为新 username；旧 username 作为 displayName。
+  // 迁移旧结构：把旧 handle 作为新 username；旧 username 作为 displayName。
   const oldHandle = (parsed as { handle?: string }).handle;
   const oldUsername = parsed.username;
   const migrated: User = {
@@ -71,6 +89,7 @@ export async function getUserById(kv: KVNamespace, userId: string): Promise<User
     followingCount: parsed.followingCount || 0,
     followersCount: parsed.followersCount || 0,
     createdAt: parsed.createdAt || new Date().toISOString(),
+    onboarded: true,
   };
 
   await kv.put(`users:${userId}`, JSON.stringify(migrated));

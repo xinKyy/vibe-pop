@@ -10,6 +10,8 @@ export interface User {
   followingCount: number;
   followersCount: number;
   createdAt: string;
+  /** 是否完成新用户引导。false 时前端应把用户路由到 /onboarding。 */
+  onboarded?: boolean;
 }
 
 export type ContentType = 'game' | 'memory' | 'generator' | 'other';

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, User } from '../types';
 import { signJWT } from '../middleware/auth';
-import { generateUniqueUsername, getUserById } from '../services/users';
+import { getUserById } from '../services/users';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -38,33 +38,38 @@ auth.post('/login', async (c) => {
 
   let userId = await c.env.KV.get(`users:email:${email}`);
   let user: User;
+  let isNewUser = false;
 
   if (!userId) {
     userId = `u_${crypto.randomUUID().slice(0, 8)}`;
-    const username = await generateUniqueUsername(c.env.KV, email);
+    // 初始 username 用 userId 作占位（合法且全局唯一），新用户引导后会替换为用户选择的 username。
+    const placeholderUsername = userId;
     user = {
       id: userId,
       email,
-      username,
-      displayName: username,
+      username: placeholderUsername,
+      displayName: '',
       avatar: '😀',
       bio: '',
       followingCount: 0,
       followersCount: 0,
       createdAt: new Date().toISOString(),
+      onboarded: false,
     };
     await c.env.KV.put(`users:${userId}`, JSON.stringify(user));
     await c.env.KV.put(`users:email:${email}`, userId);
-    await c.env.KV.put(`users:username:${username}`, userId);
+    await c.env.KV.put(`users:username:${placeholderUsername}`, userId);
+    isNewUser = true;
   } else {
     const loaded = await getUserById(c.env.KV, userId);
     if (!loaded) return c.json({ success: false, error: 'User not found' }, 500);
     user = loaded;
+    isNewUser = !user.onboarded;
   }
 
   const token = await signJWT({ sub: userId, email }, c.env.JWT_SECRET);
 
-  return c.json({ success: true, data: { user, token } });
+  return c.json({ success: true, data: { user, token, isNewUser } });
 });
 
 export default auth;

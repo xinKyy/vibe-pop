@@ -22,7 +22,18 @@ export default function ProfilePage() {
   const { t, language, setLanguage } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>('works');
   const [myContents, setMyContents] = useState<Content[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [likedContents, setLikedContents] = useState<Content[]>([]);
+  const [favoriteContents, setFavoriteContents] = useState<Content[]>([]);
+  const [loadingTab, setLoadingTab] = useState<Record<TabKey, boolean>>({
+    works: false,
+    likes: false,
+    favorites: false,
+  });
+  const [loadedTab, setLoadedTab] = useState<Record<TabKey, boolean>>({
+    works: false,
+    likes: false,
+    favorites: false,
+  });
   const [showEdit, setShowEdit] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toast, setToast] = useState('');
@@ -31,20 +42,60 @@ export default function ProfilePage() {
 
   const fetchMyContents = useCallback(async () => {
     if (!userId) return;
-    setLoading(true);
+    setLoadingTab((s) => ({ ...s, works: true }));
     try {
       const res = await api.users.contents(userId);
       setMyContents(res?.data?.items ?? []);
     } catch (e) {
       console.error('Failed to fetch my contents:', e);
     } finally {
-      setLoading(false);
+      setLoadingTab((s) => ({ ...s, works: false }));
+      setLoadedTab((s) => ({ ...s, works: true }));
     }
   }, [userId]);
 
+  const fetchMyLikes = useCallback(async () => {
+    setLoadingTab((s) => ({ ...s, likes: true }));
+    try {
+      const res = await api.users.myLikes();
+      setLikedContents((res?.data?.items ?? []) as Content[]);
+    } catch (e) {
+      console.error('Failed to fetch my likes:', e);
+    } finally {
+      setLoadingTab((s) => ({ ...s, likes: false }));
+      setLoadedTab((s) => ({ ...s, likes: true }));
+    }
+  }, []);
+
+  const fetchMyFavorites = useCallback(async () => {
+    setLoadingTab((s) => ({ ...s, favorites: true }));
+    try {
+      const res = await api.users.myFavorites();
+      setFavoriteContents((res?.data?.items ?? []) as Content[]);
+    } catch (e) {
+      console.error('Failed to fetch my favorites:', e);
+    } finally {
+      setLoadingTab((s) => ({ ...s, favorites: false }));
+      setLoadedTab((s) => ({ ...s, favorites: true }));
+    }
+  }, []);
+
   useEffect(() => {
-    if (isLoggedIn) fetchMyContents();
-  }, [isLoggedIn, fetchMyContents]);
+    if (!isLoggedIn) return;
+    if (activeTab === 'works' && !loadedTab.works) fetchMyContents();
+    if (activeTab === 'likes' && !loadedTab.likes) fetchMyLikes();
+    if (activeTab === 'favorites' && !loadedTab.favorites) fetchMyFavorites();
+  }, [isLoggedIn, activeTab, loadedTab, fetchMyContents, fetchMyLikes, fetchMyFavorites]);
+
+  // 登出后重置所有加载状态，避免再次登录时看到旧数据
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setMyContents([]);
+      setLikedContents([]);
+      setFavoriteContents([]);
+      setLoadedTab({ works: false, likes: false, favorites: false });
+    }
+  }, [isLoggedIn]);
 
   // 同步后端迁移后的最新用户资料（老账号可能缺 displayName 等字段）。只跑一次，避免循环。
   const meRefreshedRef = useRef(false);
@@ -170,36 +221,66 @@ export default function ProfilePage() {
 
       {/* Content */}
       <div>
-        {loading ? (
-          <div className="grid grid-cols-2" style={{ gap: 10, padding: '12px 20px' }}>
-            {[...Array(2)].map((_, i) => (
-              <div key={i} className="rounded-[var(--radius-md)] overflow-hidden bg-card">
-                <div className="aspect-square loading-shimmer" />
-                <div style={{ padding: 10 }}>
-                  <div className="loading-shimmer w-3/4 rounded" style={{ height: 14, marginBottom: 6 }} />
-                  <div className="loading-shimmer w-1/2 rounded" style={{ height: 12 }} />
+        {(() => {
+          const currentList =
+            activeTab === 'works' ? myContents : activeTab === 'likes' ? likedContents : favoriteContents;
+          const isLoading = loadingTab[activeTab];
+
+          if (isLoading) {
+            return (
+              <div className="grid grid-cols-2" style={{ gap: 10, padding: '12px 20px' }}>
+                {[...Array(2)].map((_, i) => (
+                  <div key={i} className="rounded-[var(--radius-md)] overflow-hidden bg-card">
+                    <div className="aspect-square loading-shimmer" />
+                    <div style={{ padding: 10 }}>
+                      <div className="loading-shimmer w-3/4 rounded" style={{ height: 14, marginBottom: 6 }} />
+                      <div className="loading-shimmer w-1/2 rounded" style={{ height: 12 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+
+          if (currentList.length === 0) {
+            if (activeTab === 'works') {
+              return (
+                <div className="text-center text-dim" style={{ padding: '40px 20px' }}>
+                  <div className="text-5xl opacity-30" style={{ marginBottom: 10 }}>◇</div>
+                  <div className="text-[15px] font-semibold" style={{ marginBottom: 6 }}>{t('profile.empty.title')}</div>
+                  <div className="text-[13px] text-dim" style={{ marginBottom: 16 }}>{t('profile.empty.subtitle')}</div>
+                  <button onClick={() => navigate('/create')}
+                    className="bg-accent text-accent-fg text-[14px] font-semibold rounded-[var(--radius-md)] active:scale-95 hover:brightness-110 transition-all"
+                    style={{ padding: '12px 24px' }}>
+                    {t('profile.empty.cta')}
+                  </button>
+                </div>
+              );
+            }
+            return (
+              <div className="text-center text-dim" style={{ padding: '40px 20px' }}>
+                <div className="text-5xl opacity-30" style={{ marginBottom: 10 }}>
+                  {activeTab === 'likes' ? '♡' : '☆'}
+                </div>
+                <div className="text-[15px] font-semibold" style={{ marginBottom: 6 }}>
+                  {t(activeTab === 'likes' ? 'profile.empty.likes' : 'profile.empty.favorites')}
                 </div>
               </div>
-            ))}
-          </div>
-        ) : activeTab === 'works' && myContents.length === 0 ? (
-          <div className="text-center text-dim" style={{ padding: '40px 20px' }}>
-            <div className="text-5xl opacity-30" style={{ marginBottom: 10 }}>◇</div>
-            <div className="text-[15px] font-semibold" style={{ marginBottom: 6 }}>{t('profile.empty.title')}</div>
-            <div className="text-[13px] text-dim" style={{ marginBottom: 16 }}>{t('profile.empty.subtitle')}</div>
-            <button onClick={() => navigate('/create')}
-              className="bg-accent text-accent-fg text-[14px] font-semibold rounded-[var(--radius-md)] active:scale-95 hover:brightness-110 transition-all"
-              style={{ padding: '12px 24px' }}>
-              {t('profile.empty.cta')}
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2" style={{ gap: 10, padding: '12px 20px' }}>
-            {(activeTab === 'works' ? myContents : []).map((content) => (
-              <ContentCard key={content.id} content={content} showManage={activeTab === 'works'} />
-            ))}
-          </div>
-        )}
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-2" style={{ gap: 10, padding: '12px 20px' }}>
+              {currentList.map((content) => (
+                <ContentCard
+                  key={content.id}
+                  content={content}
+                  showManage={activeTab === 'works'}
+                />
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* 设置区块：语言切换 + 退出登录 */}

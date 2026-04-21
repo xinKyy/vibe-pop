@@ -54,6 +54,8 @@ export const translations = {
     'profile.empty.title': '还没有作品',
     'profile.empty.subtitle': '用 AI 创作你的第一个互动内容',
     'profile.empty.cta': '开始创作',
+    'profile.empty.likes': '还没有点赞的内容',
+    'profile.empty.favorites': '还没有收藏的内容',
     'profile.defaultDisplayName': '用户',
     'profile.toast.updated': '资料已更新',
 
@@ -89,6 +91,23 @@ export const translations = {
     'login.autoRegister': '未注册的邮箱将自动创建账号',
     'login.errors.send': '发送失败',
     'login.errors.login': '登录失败',
+
+    // OnboardingPage（新用户首次登录引导）
+    'onboarding.header': '欢迎加入 VibePop',
+    'onboarding.subtitle': '花一分钟告诉大家你是谁，之后还能在设置里修改显示名。',
+    'onboarding.username.label': '用户名',
+    'onboarding.username.hint': '3~20 位，仅限小写字母、数字、下划线，一旦设置不可修改',
+    'onboarding.username.placeholder': '例如 lucky_panda',
+    'onboarding.displayName.label': '显示名',
+    'onboarding.displayName.hint': '1~20 个字符，可随时在个人主页修改',
+    'onboarding.displayName.placeholder': '给自己起一个好听的名字',
+    'onboarding.submit': '完成设置',
+    'onboarding.submitting': '提交中...',
+    'onboarding.error.usernameInvalid': '用户名格式不正确',
+    'onboarding.error.usernameTaken': '该用户名已被占用',
+    'onboarding.error.displayNameLength': '显示名长度需在 1~20 之间',
+    'onboarding.error.unknown': '设置失败，请稍后重试',
+    'onboarding.toast.success': '资料已设置',
 
     // CreatePage
     'create.title.prefix': '创',
@@ -263,6 +282,8 @@ export const translations = {
     'profile.empty.title': 'No works yet',
     'profile.empty.subtitle': 'Create your first interactive content with AI',
     'profile.empty.cta': 'Start creating',
+    'profile.empty.likes': 'No liked content yet',
+    'profile.empty.favorites': 'No saved content yet',
     'profile.defaultDisplayName': 'User',
     'profile.toast.updated': 'Profile updated',
 
@@ -298,6 +319,23 @@ export const translations = {
     'login.autoRegister': 'A new account is created automatically for unregistered emails',
     'login.errors.send': 'Failed to send code',
     'login.errors.login': 'Failed to sign in',
+
+    // OnboardingPage (first-time user setup)
+    'onboarding.header': 'Welcome to VibePop',
+    'onboarding.subtitle': 'Tell us who you are — you can still update your display name later.',
+    'onboarding.username.label': 'Username',
+    'onboarding.username.hint': '3–20 chars, lowercase letters / digits / underscore. Cannot be changed later.',
+    'onboarding.username.placeholder': 'e.g. lucky_panda',
+    'onboarding.displayName.label': 'Display name',
+    'onboarding.displayName.hint': '1–20 characters. You can change it anytime from your profile.',
+    'onboarding.displayName.placeholder': 'Pick a nice name',
+    'onboarding.submit': 'Finish setup',
+    'onboarding.submitting': 'Submitting...',
+    'onboarding.error.usernameInvalid': 'Invalid username format',
+    'onboarding.error.usernameTaken': 'This username is taken',
+    'onboarding.error.displayNameLength': 'Display name must be 1–20 characters',
+    'onboarding.error.unknown': 'Failed to save. Please try again.',
+    'onboarding.toast.success': 'Profile saved',
 
     // CreatePage
     'create.title.prefix': 'Cre',

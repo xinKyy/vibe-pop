@@ -2,11 +2,11 @@ import { CONTENT_TEMPLATES, getTemplateKeys, PROMPT_TEMPLATES } from './services
 import type { Content, User } from './types';
 
 const seedUsers: User[] = [
-  { id: 'u_seed01', email: 'xiaoming@vibepop.app', username: 'xiaoming', displayName: '小明的创意工坊', avatar: '🎨', bio: '游戏开发爱好者', followingCount: 12, followersCount: 234, createdAt: '2026-03-01T00:00:00Z' },
-  { id: 'u_seed02', email: 'travel@vibepop.app', username: 'travel', displayName: '旅行日记', avatar: '✈️', bio: '用脚步丈量世界', followingCount: 89, followersCount: 567, createdAt: '2026-03-05T00:00:00Z' },
-  { id: 'u_seed03', email: 'dushe@vibepop.app', username: 'dushe', displayName: '毒舌AI', avatar: '🤖', bio: '专业吐槽30年', followingCount: 5, followersCount: 1200, createdAt: '2026-03-10T00:00:00Z' },
-  { id: 'u_seed04', email: 'time@vibepop.app', username: 'timemachine', displayName: '时光机', avatar: '⏰', bio: '记录每一个瞬间', followingCount: 45, followersCount: 178, createdAt: '2026-03-15T00:00:00Z' },
-  { id: 'u_seed05', email: 'card@vibepop.app', username: 'cardmaker', displayName: '贺卡工厂', avatar: '🎂', bio: '为每个特别的日子', followingCount: 23, followersCount: 345, createdAt: '2026-03-20T00:00:00Z' },
+  { id: 'u_seed01', email: 'xiaoming@vibepop.app', username: 'xiaoming', displayName: '小明的创意工坊', avatar: '🎨', bio: '游戏开发爱好者', followingCount: 12, followersCount: 234, createdAt: '2026-03-01T00:00:00Z', onboarded: true },
+  { id: 'u_seed02', email: 'travel@vibepop.app', username: 'travel', displayName: '旅行日记', avatar: '✈️', bio: '用脚步丈量世界', followingCount: 89, followersCount: 567, createdAt: '2026-03-05T00:00:00Z', onboarded: true },
+  { id: 'u_seed03', email: 'dushe@vibepop.app', username: 'dushe', displayName: '毒舌AI', avatar: '🤖', bio: '专业吐槽30年', followingCount: 5, followersCount: 1200, createdAt: '2026-03-10T00:00:00Z', onboarded: true },
+  { id: 'u_seed04', email: 'time@vibepop.app', username: 'timemachine', displayName: '时光机', avatar: '⏰', bio: '记录每一个瞬间', followingCount: 45, followersCount: 178, createdAt: '2026-03-15T00:00:00Z', onboarded: true },
+  { id: 'u_seed05', email: 'card@vibepop.app', username: 'cardmaker', displayName: '贺卡工厂', avatar: '🎂', bio: '为每个特别的日子', followingCount: 23, followersCount: 345, createdAt: '2026-03-20T00:00:00Z', onboarded: true },
 ];
 
 const templateToUser: Record<string, string> = {

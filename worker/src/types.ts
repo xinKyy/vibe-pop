@@ -18,6 +18,8 @@ export interface User {
   followingCount: number;
   followersCount: number;
   createdAt: string;
+  /** 是否完成新用户引导（设置 username / displayName）。老用户默认 true。 */
+  onboarded: boolean;
 }
 
 export interface UserSummary {

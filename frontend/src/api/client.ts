@@ -93,7 +93,7 @@ export const api = {
     sendCode: (email: string) =>
       request<{ success: boolean; data: { message: string } }>('/auth/send-code', { method: 'POST', body: JSON.stringify({ email }) }),
     login: (email: string, code: string) =>
-      request<{ success: boolean; data: { user: any; token: string } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, code }) }),
+      request<{ success: boolean; data: { user: any; token: string; isNewUser: boolean } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, code }) }),
   },
 
   contents: {
@@ -121,8 +121,14 @@ export const api = {
     get: (id: string) => request<{ success: boolean; data: any }>(`/users/${id}`),
     updateMe: (body: { displayName?: string; avatar?: string; bio?: string }) =>
       request<{ success: boolean; data: any; error?: string }>('/users/me', { method: 'PUT', body: JSON.stringify(body) }),
+    completeOnboarding: (body: { username: string; displayName: string; avatar?: string }) =>
+      request<{ success: boolean; data: any; error?: string }>('/users/me/onboarding', { method: 'POST', body: JSON.stringify(body) }),
     contents: (id: string, page = 1) =>
       request<{ success: boolean; data: { items: any[]; hasMore: boolean } }>(`/users/${id}/contents?page=${page}`),
+    myLikes: (page = 1) =>
+      request<{ success: boolean; data: { items: any[]; hasMore: boolean } }>(`/users/me/likes?page=${page}`),
+    myFavorites: (page = 1) =>
+      request<{ success: boolean; data: { items: any[]; hasMore: boolean } }>(`/users/me/favorites?page=${page}`),
   },
 
   social: {
