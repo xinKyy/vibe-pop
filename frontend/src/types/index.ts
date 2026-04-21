@@ -1,8 +1,10 @@
 export interface User {
   id: string;
   email: string;
+  /** 唯一、不可修改的 @-handle */
   username: string;
-  handle: string;
+  /** 可修改、允许重复的显示名 */
+  displayName: string;
   avatar: string;
   bio: string;
   followingCount: number;
@@ -48,7 +50,7 @@ export interface ContentSummary {
 export interface UserSummary {
   id: string;
   username: string;
-  handle: string;
+  displayName: string;
   avatar: string;
 }
 
@@ -64,9 +66,10 @@ export interface Comment {
 export interface FeaturedTemplate {
   id: string;
   title: string;
-  cover: string;
-  coverEmoji: string;
-  coverGradient: string;
+  /** 点击后填入输入框的提示词 */
+  prompt: string;
+  emoji: string;
+  gradient: string;
   sortOrder: number;
   isActive: boolean;
 }

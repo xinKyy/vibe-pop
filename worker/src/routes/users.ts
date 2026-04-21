@@ -1,26 +1,41 @@
 import { Hono } from 'hono';
 import type { Env, User, Content } from '../types';
 import { authMiddleware, optionalAuth } from '../middleware/auth';
+import { getUserById } from '../services/users';
 
 const users = new Hono<{ Bindings: Env }>();
 
 users.get('/me', authMiddleware, async (c) => {
   const userId = c.get('userId' as never) as string;
-  const data = await c.env.KV.get(`users:${userId}`);
-  if (!data) return c.json({ success: false, error: 'User not found' }, 404);
-
-  return c.json({ success: true, data: JSON.parse(data) });
+  const user = await getUserById(c.env.KV, userId);
+  if (!user) return c.json({ success: false, error: 'User not found' }, 404);
+  return c.json({ success: true, data: user });
 });
 
 users.put('/me', authMiddleware, async (c) => {
   const userId = c.get('userId' as never) as string;
-  const data = await c.env.KV.get(`users:${userId}`);
-  if (!data) return c.json({ success: false, error: 'User not found' }, 404);
+  const user = await getUserById(c.env.KV, userId);
+  if (!user) return c.json({ success: false, error: 'User not found' }, 404);
 
-  const user: User = JSON.parse(data);
-  const updates = await c.req.json<Partial<Pick<User, 'username' | 'handle' | 'avatar' | 'bio'>>>();
+  const body = await c.req.json<Partial<Pick<User, 'displayName' | 'avatar' | 'bio'>> & { username?: string }>();
 
-  const updated = { ...user, ...updates };
+  // username 不可修改：若传入且与当前不同，拒绝。
+  if (typeof body.username === 'string' && body.username !== user.username) {
+    return c.json({ success: false, error: 'username 不可修改' }, 400);
+  }
+
+  const updates: Partial<User> = {};
+  if (typeof body.displayName === 'string') {
+    const name = body.displayName.trim();
+    if (name.length < 1 || name.length > 20) {
+      return c.json({ success: false, error: '显示名长度需在 1~20 之间' }, 400);
+    }
+    updates.displayName = name;
+  }
+  if (typeof body.avatar === 'string') updates.avatar = body.avatar.slice(0, 8);
+  if (typeof body.bio === 'string') updates.bio = body.bio.slice(0, 140);
+
+  const updated: User = { ...user, ...updates };
   await c.env.KV.put(`users:${userId}`, JSON.stringify(updated));
 
   return c.json({ success: true, data: updated });
@@ -28,10 +43,9 @@ users.put('/me', authMiddleware, async (c) => {
 
 users.get('/:id', optionalAuth(), async (c) => {
   const id = c.req.param('id')!;
-  const data = await c.env.KV.get(`users:${id}`);
-  if (!data) return c.json({ success: false, error: 'User not found' }, 404);
-
-  return c.json({ success: true, data: JSON.parse(data) });
+  const user = await getUserById(c.env.KV, id);
+  if (!user) return c.json({ success: false, error: 'User not found' }, 404);
+  return c.json({ success: true, data: user });
 });
 
 users.get('/:id/contents', optionalAuth(), async (c) => {

@@ -7,6 +7,7 @@ import {
   formatBytes,
   type Asset,
 } from '../../utils/assets';
+import { useTranslation } from '../../i18n';
 
 interface AssetManagerProps {
   assets: Asset[];
@@ -21,6 +22,7 @@ const KIND_ICON: Record<Asset['kind'], string> = {
 };
 
 export default function AssetManager({ assets, onChange }: AssetManagerProps) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<string>('');
   const [copyId, setCopyId] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export default function AssetManager({ assets, onChange }: AssetManagerProps) {
       const kind = detectKind(file.type, file.name);
       const limit = ASSET_LIMITS[kind];
       if (file.size > limit.max) {
-        showToast(`「${file.name}」超过 ${formatBytes(limit.max)} 限制`);
+        showToast(t('assets.overLimit', { name: file.name, limit: formatBytes(limit.max) }));
         continue;
       }
       const name = dedupeName(file.name, existing);
@@ -59,7 +61,7 @@ export default function AssetManager({ assets, onChange }: AssetManagerProps) {
   const handleRemove = (id: string) => {
     const target = assets.find((a) => a.id === id);
     if (!target) return;
-    if (!window.confirm(`确认删除「${target.name}」？`)) return;
+    if (!window.confirm(t('assets.confirmDelete', { name: target.name }))) return;
     try { URL.revokeObjectURL(target.blobUrl); } catch { /* noop */ }
     onChange(assets.filter((a) => a.id !== id));
   };
@@ -70,7 +72,7 @@ export default function AssetManager({ assets, onChange }: AssetManagerProps) {
       setCopyId(a.id);
       window.setTimeout(() => setCopyId(null), 1200);
     } catch {
-      showToast('复制失败');
+      showToast(t('common.copyFailed'));
     }
   };
 
@@ -95,9 +97,9 @@ export default function AssetManager({ assets, onChange }: AssetManagerProps) {
           style={{ padding: '24px 16px', textAlign: 'center' }}
         >
           <div className="text-2xl" style={{ marginBottom: 6 }}>⇪</div>
-          <div className="text-[13px] font-semibold text-fg">拖拽文件到此处或点击上传</div>
+          <div className="text-[13px] font-semibold text-fg">{t('assets.dropzone')}</div>
           <div className="text-[11px] text-dim" style={{ marginTop: 4 }}>
-            图片 ≤5MB · 音频 ≤10MB · 视频 ≤50MB · 其他 ≤1MB
+            {t('assets.dropzone.limit')}
           </div>
         </div>
         <input
@@ -122,12 +124,12 @@ export default function AssetManager({ assets, onChange }: AssetManagerProps) {
       <div className="flex-1 overflow-y-auto" style={{ padding: '0 16px 16px' }}>
         {assets.length === 0 ? (
           <div className="text-center text-dim text-[13px]" style={{ padding: '24px 0' }}>
-            暂无资源 · 上传后在代码中使用 <code className="text-muted-fg">./assets/文件名</code> 引用
+            {t('assets.empty')}
           </div>
         ) : (
           <>
             <div className="text-[11px] text-dim" style={{ marginBottom: 10 }}>
-              共 {assets.length} 项 · {formatBytes(totalSize)}
+              {t('assets.count', { count: assets.length, size: formatBytes(totalSize) })}
             </div>
             <div className="grid grid-cols-2 gap-3">
               {assets.map((a) => (
@@ -152,14 +154,14 @@ export default function AssetManager({ assets, onChange }: AssetManagerProps) {
                         className="flex-1 bg-muted hover:bg-border text-muted-fg hover:text-fg text-[11px] font-semibold rounded transition-colors"
                         style={{ padding: '5px 0' }}
                       >
-                        {copyId === a.id ? '已复制' : '复制路径'}
+                        {copyId === a.id ? t('assets.copied') : t('assets.copyPath')}
                       </button>
                       <button
                         onClick={() => handleRemove(a.id)}
                         className="bg-muted hover:bg-red-500/20 text-muted-fg hover:text-red-400 text-[11px] font-semibold rounded transition-colors"
                         style={{ padding: '5px 10px' }}
                       >
-                        删除
+                        {t('assets.delete')}
                       </button>
                     </div>
                   </div>

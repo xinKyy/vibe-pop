@@ -1,4 +1,5 @@
 import { useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from '../../i18n';
 
 interface CodeEditorProps {
   value: string;
@@ -14,6 +15,7 @@ interface CodeEditorProps {
  * 不依赖 Monaco（约 1MB），保持首屏轻量；若后续需要高级特性可替换。
  */
 export default function CodeEditor({ value, onChange, readOnly, errors = 0, sizeLimit = 50 * 1024 }: CodeEditorProps) {
+  const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
 
@@ -80,11 +82,11 @@ export default function CodeEditor({ value, onChange, readOnly, errors = 0, size
         className="flex items-center justify-between border-t border-border/40 text-[11px] text-muted-fg select-none"
         style={{ padding: '6px 12px', background: '#0a0a0c' }}
       >
-        <span className="tabular-nums">{lineCount} 行 · {value.length} 字</span>
+        <span className="tabular-nums">{t('editor.lineChar', { lines: lineCount, chars: value.length })}</span>
         <span className={`tabular-nums ${oversize ? 'text-red-400' : ''}`}>
           {(sizeBytes / 1024).toFixed(1)} / {(sizeLimit / 1024).toFixed(0)} KB
-          {oversize && ' · 体积超限'}
-          {errors > 0 && ` · ${errors} 个错误`}
+          {oversize && t('editor.oversize')}
+          {errors > 0 && t('editor.errors', { count: errors })}
         </span>
       </div>
     </div>

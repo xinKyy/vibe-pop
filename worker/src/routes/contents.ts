@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
-import type { Env, Content, User } from '../types';
+import type { Env, Content, UserSummary } from '../types';
 import { authMiddleware, optionalAuth } from '../middleware/auth';
+import { getUserById, toUserSummary, fallbackSummary } from '../services/users';
 
 const contents = new Hono<{ Bindings: Env }>();
 
@@ -8,14 +9,11 @@ function generateId(): string {
   return `cnt_${crypto.randomUUID().slice(0, 8)}`;
 }
 
-async function enrichContent(content: Content, kv: KVNamespace): Promise<Content & { author: { id: string; username: string; handle: string; avatar: string } }> {
-  const userData = await kv.get(`users:${content.authorId}`);
-  const user: User | null = userData ? JSON.parse(userData) : null;
+async function enrichContent(content: Content, kv: KVNamespace): Promise<Content & { author: UserSummary }> {
+  const user = await getUserById(kv, content.authorId);
   return {
     ...content,
-    author: user
-      ? { id: user.id, username: user.username, handle: user.handle, avatar: user.avatar }
-      : { id: content.authorId, username: '匿名', handle: 'anon', avatar: '👤' },
+    author: user ? toUserSummary(user) : fallbackSummary(content.authorId),
   };
 }
 

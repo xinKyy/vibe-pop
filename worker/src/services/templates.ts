@@ -62,6 +62,92 @@ export function getTemplateByKey(key: string) {
   return CONTENT_TEMPLATES[key];
 }
 
+/** 输入框提示词模板：点击后填充到 prompt 输入框，让用户可以继续编辑后再让 AI 生成 */
+export interface PromptTemplate {
+  id: string;
+  title: string;
+  emoji: string;
+  gradient: string;
+  prompt: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export const PROMPT_TEMPLATES: PromptTemplate[] = [
+  {
+    id: 'game_bouncing',
+    title: '弹球游戏',
+    emoji: '🎮',
+    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    prompt: '做一个弹球打砖块小游戏：点击屏幕向上发射小球，彩色砖块被击中后消失并加分，顶部显示当前得分，支持触屏操作。',
+    sortOrder: 1,
+    isActive: true,
+  },
+  {
+    id: 'memory_album',
+    title: '旅行相册',
+    emoji: '📸',
+    gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    prompt: '做一个可左右滑动的旅行相册：每张卡片展示一张风景图和一段文案，底部有小圆点指示当前位置，配一个温柔的标题与简短描述。',
+    sortOrder: 2,
+    isActive: true,
+  },
+  {
+    id: 'gen_roast',
+    title: '毒舌生成器',
+    emoji: '🤖',
+    gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    prompt: '做一个毒舌点评生成器：用户输入名字，点击按钮生成一段犀利又搞笑的点评，文字用打字机效果逐字显示，深紫色霓虹风格。',
+    sortOrder: 3,
+    isActive: true,
+  },
+  {
+    id: 'memory_capsule',
+    title: '时光胶囊',
+    emoji: '⏰',
+    gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+    prompt: '做一个时光胶囊：用户写下一段话给未来的自己，点击封存后显示"将在一年后开启"，并触发彩色粒子庆祝动画。',
+    sortOrder: 4,
+    isActive: true,
+  },
+  {
+    id: 'game_dodge',
+    title: '躲避障碍',
+    emoji: '🎯',
+    gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    prompt: '做一个竖屏躲避障碍小游戏：方块从顶部随机下落，手指拖动或鼠标控制底部角色左右躲避，越玩越快，碰撞结束并显示得分与最高记录。',
+    sortOrder: 5,
+    isActive: true,
+  },
+  {
+    id: 'card_birthday',
+    title: '生日贺卡',
+    emoji: '🎂',
+    gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+    prompt: '做一个动态生日贺卡：蛋糕持续弹跳，点击蛋糕变成礼物并冒出音符，下方按钮触发彩色纸屑从顶部洒落的烟花动画。',
+    sortOrder: 6,
+    isActive: true,
+  },
+  {
+    id: 'gen_quote',
+    title: '语录卡片',
+    emoji: '✨',
+    gradient: 'linear-gradient(135deg, #fc466b 0%, #3f5efb 100%)',
+    prompt: '做一个随机语录生成器：点击"换一句"按钮随机展示一句励志或搞笑语录，卡片有淡入淡出动画，提供一个"复制"按钮。',
+    sortOrder: 7,
+    isActive: true,
+  },
+  {
+    id: 'game_memory',
+    title: '翻牌记忆',
+    emoji: '🃏',
+    gradient: 'linear-gradient(135deg, #5ee7df 0%, #b490ca 100%)',
+    prompt: '做一个 4x4 翻牌记忆游戏：16 张卡片两两配对 emoji，玩家翻开两张，相同则保留否则翻回；顶部显示步数与用时，全部配对完成显示恭喜页面与"再来一局"。',
+    sortOrder: 8,
+    isActive: true,
+  },
+];
+
 export function matchTemplate(prompt: string): string | null {
   const lower = prompt.toLowerCase();
   if (lower.includes('弹球') || lower.includes('ball') || lower.includes('打砖块')) return 'bouncing_ball';

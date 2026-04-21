@@ -1,14 +1,16 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation, type TranslationKey } from '../../i18n';
 
 const tabs = [
-  { path: '/', label: '发现', icon: '◈' },
-  { path: '/create', label: '创作', icon: '+', isCenter: true },
-  { path: '/profile', label: '我的', icon: '◎' },
+  { path: '/', labelKey: 'nav.browse' as TranslationKey, icon: '◈' },
+  { path: '/create', labelKey: 'nav.create' as TranslationKey, icon: '+', isCenter: true },
+  { path: '/profile', labelKey: 'nav.profile' as TranslationKey, icon: '◎' },
 ] as const;
 
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -36,7 +38,7 @@ export default function BottomNav() {
           ) : (
             <>
               <span className="text-base leading-none">{tab.icon}</span>
-              <span className="text-[10px] font-semibold tracking-wide">{tab.label}</span>
+              <span className="text-[10px] font-semibold tracking-wide">{t(tab.labelKey)}</span>
             </>
           )}
         </button>

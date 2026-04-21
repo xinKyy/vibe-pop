@@ -1,12 +1,12 @@
-import { CONTENT_TEMPLATES, getTemplateKeys } from './services/templates';
+import { CONTENT_TEMPLATES, getTemplateKeys, PROMPT_TEMPLATES } from './services/templates';
 import type { Content, User } from './types';
 
 const seedUsers: User[] = [
-  { id: 'u_seed01', email: 'xiaoming@vibepop.app', username: '小明的创意工坊', handle: 'xiaoming', avatar: '🎨', bio: '游戏开发爱好者', followingCount: 12, followersCount: 234, createdAt: '2026-03-01T00:00:00Z' },
-  { id: 'u_seed02', email: 'travel@vibepop.app', username: '旅行日记', handle: 'travel', avatar: '✈️', bio: '用脚步丈量世界', followingCount: 89, followersCount: 567, createdAt: '2026-03-05T00:00:00Z' },
-  { id: 'u_seed03', email: 'dushe@vibepop.app', username: '毒舌AI', handle: 'dushe', avatar: '🤖', bio: '专业吐槽30年', followingCount: 5, followersCount: 1200, createdAt: '2026-03-10T00:00:00Z' },
-  { id: 'u_seed04', email: 'time@vibepop.app', username: '时光机', handle: 'timemachine', avatar: '⏰', bio: '记录每一个瞬间', followingCount: 45, followersCount: 178, createdAt: '2026-03-15T00:00:00Z' },
-  { id: 'u_seed05', email: 'card@vibepop.app', username: '贺卡工厂', handle: 'cardmaker', avatar: '🎂', bio: '为每个特别的日子', followingCount: 23, followersCount: 345, createdAt: '2026-03-20T00:00:00Z' },
+  { id: 'u_seed01', email: 'xiaoming@vibepop.app', username: 'xiaoming', displayName: '小明的创意工坊', avatar: '🎨', bio: '游戏开发爱好者', followingCount: 12, followersCount: 234, createdAt: '2026-03-01T00:00:00Z' },
+  { id: 'u_seed02', email: 'travel@vibepop.app', username: 'travel', displayName: '旅行日记', avatar: '✈️', bio: '用脚步丈量世界', followingCount: 89, followersCount: 567, createdAt: '2026-03-05T00:00:00Z' },
+  { id: 'u_seed03', email: 'dushe@vibepop.app', username: 'dushe', displayName: '毒舌AI', avatar: '🤖', bio: '专业吐槽30年', followingCount: 5, followersCount: 1200, createdAt: '2026-03-10T00:00:00Z' },
+  { id: 'u_seed04', email: 'time@vibepop.app', username: 'timemachine', displayName: '时光机', avatar: '⏰', bio: '记录每一个瞬间', followingCount: 45, followersCount: 178, createdAt: '2026-03-15T00:00:00Z' },
+  { id: 'u_seed05', email: 'card@vibepop.app', username: 'cardmaker', displayName: '贺卡工厂', avatar: '🎂', bio: '为每个特别的日子', followingCount: 23, followersCount: 345, createdAt: '2026-03-20T00:00:00Z' },
 ];
 
 const templateToUser: Record<string, string> = {
@@ -28,6 +28,9 @@ const playCounts: Record<string, number> = {
 };
 
 export async function seedDatabase(kv: KVNamespace) {
+  // Prompt 模板每次启动都同步一次（覆盖历史版本，内容很小）
+  await kv.put('templates:featured', JSON.stringify(PROMPT_TEMPLATES));
+
   const existingList = await kv.get('contents:list');
   if (existingList) {
     const ids: string[] = JSON.parse(existingList);
@@ -37,6 +40,7 @@ export async function seedDatabase(kv: KVNamespace) {
   for (const user of seedUsers) {
     await kv.put(`users:${user.id}`, JSON.stringify(user));
     await kv.put(`users:email:${user.email}`, user.id);
+    await kv.put(`users:username:${user.username}`, user.id);
   }
 
   const contentIds: string[] = [];
@@ -88,18 +92,6 @@ export async function seedDatabase(kv: KVNamespace) {
   for (const [uid, ids] of Object.entries(userContents)) {
     await kv.put(`users:${uid}:contents`, JSON.stringify(ids));
   }
-
-  await kv.put('templates:featured', JSON.stringify(
-    getTemplateKeys().map((key, i) => ({
-      id: key,
-      contentId: `cnt_${key}`,
-      title: CONTENT_TEMPLATES[key].title,
-      coverEmoji: CONTENT_TEMPLATES[key].emoji,
-      coverGradient: CONTENT_TEMPLATES[key].gradient,
-      sortOrder: i,
-      isActive: true,
-    }))
-  ));
 
   console.log(`Seeded ${contentIds.length} contents, ${seedUsers.length} users`);
 }

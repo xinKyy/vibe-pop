@@ -5,26 +5,28 @@ import Logo from '../components/ui/Logo';
 import ContentCard from '../components/content/ContentCard';
 import { api } from '../api/client';
 import type { Content } from '../types';
+import { useTranslation, type TranslationKey } from '../i18n';
 
-const categories = ['全部', '游戏', '回忆', '生成器', '其他'];
-const categoryMap: Record<string, string | undefined> = {
-  '全部': undefined,
-  '游戏': 'game',
-  '回忆': 'memory',
-  '生成器': 'generator',
-  '其他': 'other',
-};
+type CategoryKey = 'all' | 'game' | 'memory' | 'generator' | 'other';
+const categories: { key: CategoryKey; labelKey: TranslationKey; type?: string }[] = [
+  { key: 'all', labelKey: 'browse.categories.all', type: undefined },
+  { key: 'game', labelKey: 'browse.categories.game', type: 'game' },
+  { key: 'memory', labelKey: 'browse.categories.memory', type: 'memory' },
+  { key: 'generator', labelKey: 'browse.categories.generator', type: 'generator' },
+  { key: 'other', labelKey: 'browse.categories.other', type: 'other' },
+];
 
 export default function BrowsePage() {
-  const [category, setCategory] = useState('全部');
+  const [category, setCategory] = useState<CategoryKey>('all');
   const [listContents, setListContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
-  const fetchList = useCallback(async (cat: string) => {
+  const fetchList = useCallback(async (cat: CategoryKey) => {
     setLoading(true);
     try {
-      const type = categoryMap[cat];
+      const type = categories.find((c) => c.key === cat)?.type;
       const res = await api.contents.list({ type });
       setListContents(res.data.items);
     } catch (e) {
@@ -38,7 +40,7 @@ export default function BrowsePage() {
     fetchList(category);
   }, [fetchList, category]);
 
-  const handleCategoryChange = (cat: string) => {
+  const handleCategoryChange = (cat: CategoryKey) => {
     setCategory(cat);
     fetchList(cat);
   };
@@ -53,7 +55,7 @@ export default function BrowsePage() {
             <h1 className="text-[clamp(1.75rem,8vw,2.5rem)] font-bold tracking-tight leading-none">
               Vibe<span className="text-accent">Pop</span>
             </h1>
-            <p className="text-[13px] text-dim font-medium" style={{ marginTop: 4 }}>AI 驱动的互动内容社区</p>
+            <p className="text-[13px] text-dim font-medium" style={{ marginTop: 4 }}>{t('app.tagline')}</p>
           </div>
         </div>
 
@@ -74,14 +76,14 @@ export default function BrowsePage() {
             className="flex-1 text-[13px] font-semibold rounded-[var(--radius-sm)] transition-all duration-200 bg-fg text-bg"
             style={{ padding: '7px 0' }}
           >
-            发现
+            {t('browse.modeDiscover')}
           </button>
           <button
             onClick={() => navigate('/immersive')}
             className="flex-1 text-[13px] font-semibold rounded-[var(--radius-sm)] transition-all duration-200 text-dim hover:text-fg hover:bg-muted"
             style={{ padding: '7px 0' }}
           >
-            沉浸
+            {t('browse.modeImmersive')}
           </button>
         </div>
       </div>
@@ -91,16 +93,16 @@ export default function BrowsePage() {
         <div className="flex overflow-x-auto" style={{ gap: 8, padding: '0 20px 12px' }}>
           {categories.map((cat) => (
             <button
-              key={cat}
-              onClick={() => handleCategoryChange(cat)}
+              key={cat.key}
+              onClick={() => handleCategoryChange(cat.key)}
               className={`text-[13px] font-semibold whitespace-nowrap rounded-[var(--radius-full)] transition-all duration-200 ${
-                category === cat
+                category === cat.key
                   ? 'bg-accent text-accent-fg'
                   : 'bg-muted text-muted-fg hover:bg-border hover:text-fg'
               }`}
               style={{ padding: '6px 16px' }}
             >
-              {cat}
+              {t(cat.labelKey)}
             </button>
           ))}
         </div>
@@ -120,8 +122,8 @@ export default function BrowsePage() {
         ) : listContents.length === 0 ? (
           <div className="text-center py-24 text-dim">
             <div className="text-5xl mb-5 opacity-30">◇</div>
-            <div className="text-[15px] font-semibold mb-2">暂无内容</div>
-            <div className="text-[13px] text-dim">去创作第一个作品吧</div>
+            <div className="text-[15px] font-semibold mb-2">{t('browse.empty.title')}</div>
+            <div className="text-[13px] text-dim">{t('browse.empty.subtitle')}</div>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 px-5 pb-6">

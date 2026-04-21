@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { buildExternalPrompt } from '../../utils/prompts';
+import { useTranslation } from '../../i18n';
 
 interface ExternalAIPanelProps {
   /** 用户对想法的描述（与内置 AI 输入共用） */
@@ -12,6 +13,7 @@ interface ExternalAIPanelProps {
 const CODE_WARN_BYTES = 50 * 1024;
 
 export default function ExternalAIPanel({ prompt, onPromptChange, onSubmitCode }: ExternalAIPanelProps) {
+  const { t } = useTranslation();
   const [showPromptCard, setShowPromptCard] = useState(false);
   const [pastedCode, setPastedCode] = useState('');
   const [toast, setToast] = useState('');
@@ -27,31 +29,31 @@ export default function ExternalAIPanel({ prompt, onPromptChange, onSubmitCode }
 
   const generateAndCopy = async () => {
     if (!prompt.trim()) {
-      showToast('请先填写描述');
+      showToast(t('external.toast.emptyPrompt'));
       return;
     }
     setShowPromptCard(true);
     try {
       await navigator.clipboard.writeText(promptData.full);
-      showToast('提示词已复制到剪贴板');
+      showToast(t('external.toast.promptCopied'));
     } catch {
-      showToast('已展开提示词，请手动复制');
+      showToast(t('external.toast.copyManually'));
     }
   };
 
   const copyFull = async () => {
     try {
       await navigator.clipboard.writeText(promptData.full);
-      showToast('已复制');
+      showToast(t('common.copied'));
     } catch {
-      showToast('复制失败');
+      showToast(t('common.copyFailed'));
     }
   };
 
   const handleEnterPreview = () => {
     const code = extractHtml(pastedCode.trim());
     if (!code) {
-      showToast('请先粘贴 HTML 代码');
+      showToast(t('external.toast.emptyCode'));
       return;
     }
     onSubmitCode(code);
@@ -61,11 +63,11 @@ export default function ExternalAIPanel({ prompt, onPromptChange, onSubmitCode }
     <div className="flex flex-col gap-4 relative">
       {/* Step1: 描述 + 生成提示词 */}
       <div className="bg-surface rounded-[var(--radius-md)] border border-border/40" style={{ padding: 14 }}>
-        <div className="text-[12px] font-semibold text-dim" style={{ marginBottom: 8 }}>① 描述你想创造什么</div>
+        <div className="text-[12px] font-semibold text-dim" style={{ marginBottom: 8 }}>{t('external.step1.label')}</div>
         <textarea
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
-          placeholder={'例如：做一个猜数字小游戏，带音效'}
+          placeholder={t('external.step1.placeholder')}
           rows={3}
           className="w-full bg-muted rounded-[var(--radius-sm)] text-[14px] text-fg resize-none outline-none focus:ring-1 focus:ring-accent placeholder:text-dim leading-relaxed transition-all"
           style={{ padding: 12 }}
@@ -76,7 +78,7 @@ export default function ExternalAIPanel({ prompt, onPromptChange, onSubmitCode }
           style={{ marginTop: 8, padding: '10px 0' }}
           disabled={!prompt.trim()}
         >
-          📋 生成提示词并复制
+          {t('external.step1.generate')}
         </button>
       </div>
 
@@ -84,37 +86,34 @@ export default function ExternalAIPanel({ prompt, onPromptChange, onSubmitCode }
       {showPromptCard && (
         <div className="bg-surface rounded-[var(--radius-md)] border border-border/40 animate-fade-in" style={{ padding: 14 }}>
           <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-            <span className="text-[12px] font-semibold text-dim">② 复制以下提示词到外部 AI 工具</span>
+            <span className="text-[12px] font-semibold text-dim">{t('external.step2.label')}</span>
             <button
               onClick={copyFull}
               className="bg-muted hover:bg-border text-muted-fg hover:text-fg text-[11px] font-semibold rounded transition-colors"
               style={{ padding: '4px 10px' }}
             >
-              一键复制
+              {t('external.step2.copy')}
             </button>
           </div>
           <div
             className="bg-[#0a0a0c] rounded-[var(--radius-sm)] text-[11px] leading-relaxed font-mono text-muted-fg border border-border/40 whitespace-pre-wrap overflow-auto"
             style={{ padding: 12, maxHeight: 220 }}
           >
-            <div className="text-accent font-semibold" style={{ marginBottom: 4 }}>系统提示词</div>
-            <div style={{ marginBottom: 10 }}>{promptData.system}</div>
-            <div className="text-accent font-semibold" style={{ marginBottom: 4 }}>用户提示词</div>
-            <div>{promptData.user || <span className="text-dim italic">（空）</span>}</div>
+            {promptData.full}
           </div>
           <div className="text-[11px] text-dim" style={{ marginTop: 8 }}>
-            支持：ChatGPT · Claude · Gemini · DeepSeek 等
+            {t('external.step2.support')}
           </div>
         </div>
       )}
 
       {/* Step3: 粘贴代码 */}
       <div className="bg-surface rounded-[var(--radius-md)] border border-border/40" style={{ padding: 14 }}>
-        <div className="text-[12px] font-semibold text-dim" style={{ marginBottom: 8 }}>③ 粘贴外部 AI 生成的代码</div>
+        <div className="text-[12px] font-semibold text-dim" style={{ marginBottom: 8 }}>{t('external.step3.label')}</div>
         <textarea
           value={pastedCode}
           onChange={(e) => setPastedCode(e.target.value)}
-          placeholder={'<!DOCTYPE html> ...\n<html> ... </html>'}
+          placeholder={t('external.step3.placeholder')}
           rows={6}
           className="w-full bg-muted rounded-[var(--radius-sm)] text-[12px] text-fg font-mono resize-none outline-none focus:ring-1 focus:ring-accent placeholder:text-dim leading-relaxed transition-all"
           style={{ padding: 12 }}
@@ -122,7 +121,7 @@ export default function ExternalAIPanel({ prompt, onPromptChange, onSubmitCode }
         <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
           <span className={`text-[11px] tabular-nums ${oversize ? 'text-red-400' : 'text-dim'}`}>
             {(pastedBytes / 1024).toFixed(1)} KB
-            {oversize && ' · 超过 50KB，可能影响性能'}
+            {oversize && t('external.sizeWarn')}
           </span>
           <button
             onClick={handleEnterPreview}
@@ -130,7 +129,7 @@ export default function ExternalAIPanel({ prompt, onPromptChange, onSubmitCode }
             className="bg-accent text-accent-fg text-[13px] font-semibold rounded-[var(--radius-sm)] active:scale-[0.98] hover:brightness-110 transition-all disabled:opacity-30"
             style={{ padding: '8px 18px' }}
           >
-            进入预览 →
+            {t('external.step3.preview')}
           </button>
         </div>
       </div>

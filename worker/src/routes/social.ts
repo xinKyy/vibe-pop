@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, Content, Comment, User } from '../types';
 import { authMiddleware, optionalAuth } from '../middleware/auth';
+import { getUserById, toUserSummary, fallbackSummary } from '../services/users';
 
 const social = new Hono<{ Bindings: Env }>();
 
@@ -95,13 +96,10 @@ social.get('/contents/:id/comments', optionalAuth(), async (c) => {
   // Enrich with user data
   const enriched = [];
   for (const comment of pageComments) {
-    const userData = await c.env.KV.get(`users:${comment.userId}`);
-    const user: User | null = userData ? JSON.parse(userData) : null;
+    const user = await getUserById(c.env.KV, comment.userId);
     enriched.push({
       ...comment,
-      user: user
-        ? { id: user.id, username: user.username, handle: user.handle, avatar: user.avatar }
-        : { id: comment.userId, username: '匿名', handle: 'anon', avatar: '👤' },
+      user: user ? toUserSummary(user) : fallbackSummary(comment.userId),
     });
   }
 
@@ -138,16 +136,13 @@ social.post('/contents/:id/comments', authMiddleware, async (c) => {
     await c.env.KV.put(`contents:${contentId}`, JSON.stringify(content));
   }
 
-  const userData = await c.env.KV.get(`users:${userId}`);
-  const user: User | null = userData ? JSON.parse(userData) : null;
+  const user = await getUserById(c.env.KV, userId);
 
   return c.json({
     success: true,
     data: {
       ...comment,
-      user: user
-        ? { id: user.id, username: user.username, handle: user.handle, avatar: user.avatar }
-        : { id: userId, username: '匿名', handle: 'anon', avatar: '👤' },
+      user: user ? toUserSummary(user) : fallbackSummary(userId),
     },
   }, 201);
 });
@@ -201,11 +196,8 @@ social.get('/users/:id/following', optionalAuth(), async (c) => {
 
   const items = [];
   for (const uid of ids) {
-    const data = await c.env.KV.get(`users:${uid}`);
-    if (data) {
-      const u: User = JSON.parse(data);
-      items.push({ id: u.id, username: u.username, handle: u.handle, avatar: u.avatar });
-    }
+    const u = await getUserById(c.env.KV, uid);
+    if (u) items.push(toUserSummary(u));
   }
 
   return c.json({ success: true, data: { items } });
@@ -218,11 +210,8 @@ social.get('/users/:id/followers', optionalAuth(), async (c) => {
 
   const items = [];
   for (const uid of ids) {
-    const data = await c.env.KV.get(`users:${uid}`);
-    if (data) {
-      const u: User = JSON.parse(data);
-      items.push({ id: u.id, username: u.username, handle: u.handle, avatar: u.avatar });
-    }
+    const u = await getUserById(c.env.KV, uid);
+    if (u) items.push(toUserSummary(u));
   }
 
   return c.json({ success: true, data: { items } });

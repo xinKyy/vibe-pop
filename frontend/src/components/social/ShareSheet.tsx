@@ -1,4 +1,5 @@
 import type { Content } from '../../types';
+import { useTranslation } from '../../i18n';
 
 interface ShareSheetProps {
   content: Content;
@@ -7,6 +8,7 @@ interface ShareSheetProps {
 }
 
 export default function ShareSheet({ content, isOpen, onClose }: ShareSheetProps) {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   const shareUrl = `${window.location.origin}/c/${content.id}`;
@@ -31,7 +33,7 @@ export default function ShareSheet({ content, isOpen, onClose }: ShareSheetProps
       try {
         await navigator.share({
           title: content.title,
-          text: `来 VibePop 看看「${content.title}」`,
+          text: t('share.nativeText', { title: content.title }),
           url: shareUrl,
         });
       } catch { /* user cancelled */ }
@@ -40,10 +42,10 @@ export default function ShareSheet({ content, isOpen, onClose }: ShareSheetProps
   };
 
   const shareActions = [
-    { label: '复制链接', action: handleCopyLink, icon: '⊡' },
-    { label: '微信', action: handleCopyLink, icon: '◈' },
-    { label: '微博', action: handleCopyLink, icon: '◉' },
-    { label: '更多', action: handleNativeShare, icon: '···' },
+    { label: t('share.action.copyLink'), action: handleCopyLink, icon: '⊡' },
+    { label: t('share.action.wechat'), action: handleCopyLink, icon: '◈' },
+    { label: t('share.action.weibo'), action: handleCopyLink, icon: '◉' },
+    { label: t('share.action.more'), action: handleNativeShare, icon: '···' },
   ];
 
   return (
@@ -58,7 +60,7 @@ export default function ShareSheet({ content, isOpen, onClose }: ShareSheetProps
         </div>
 
         <div className="px-5 pb-5">
-          <div className="text-[15px] font-semibold text-center mb-5">分享</div>
+          <div className="text-[15px] font-semibold text-center mb-5">{t('share.title')}</div>
 
           <div className="overflow-hidden mb-5 rounded-[var(--radius-md)] bg-card">
             <div
@@ -70,7 +72,7 @@ export default function ShareSheet({ content, isOpen, onClose }: ShareSheetProps
             <div className="p-3.5">
               <div className="text-[14px] font-semibold">{content.title}</div>
               <div className="text-[13px] text-dim font-medium mt-1.5">
-                @{content.author.username} · VibePop
+                {content.author.displayName} · @{content.author.username} · VibePop
               </div>
             </div>
           </div>
@@ -93,7 +95,7 @@ export default function ShareSheet({ content, isOpen, onClose }: ShareSheetProps
           onClick={onClose}
           className="w-full py-4.5 border-t border-border/30 text-[14px] font-medium text-dim hover:text-fg transition-all duration-200"
         >
-          取消
+          {t('common.cancel')}
         </button>
       </div>
     </div>

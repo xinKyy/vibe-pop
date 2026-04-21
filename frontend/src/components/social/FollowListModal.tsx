@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from '../../i18n';
 
 interface FollowItem {
   id: string;
   username: string;
-  handle: string;
+  displayName: string;
   avatar: string;
 }
 
@@ -16,6 +17,7 @@ interface FollowListModalProps {
 
 export default function FollowListModal({ title, items, isOpen, onClose }: FollowListModalProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   if (!isOpen) return null;
 
@@ -43,7 +45,7 @@ export default function FollowListModal({ title, items, isOpen, onClose }: Follo
           {items.length === 0 ? (
             <div className="text-center py-16 text-dim">
               <div className="text-4xl mb-4 opacity-30">◇</div>
-              <div className="text-[14px] font-medium">暂无数据</div>
+              <div className="text-[14px] font-medium">{t('followList.empty')}</div>
             </div>
           ) : (
             items.map((item, i) => (
@@ -57,11 +59,11 @@ export default function FollowListModal({ title, items, isOpen, onClose }: Follo
                   {item.avatar}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-semibold truncate">{item.username}</div>
-                  <div className="text-[13px] text-dim font-medium mt-0.5">@{item.handle}</div>
+                  <div className="text-[14px] font-semibold truncate">{item.displayName}</div>
+                  <div className="text-[13px] text-dim font-medium mt-0.5">@{item.username}</div>
                 </div>
                 <button className="px-4.5 py-2.5 bg-accent text-accent-fg text-[13px] font-semibold rounded-[var(--radius-full)] active:scale-95 transition-all">
-                  + 关注
+                  {t('followList.follow')}
                 </button>
               </div>
             ))

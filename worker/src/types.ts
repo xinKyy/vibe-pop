@@ -9,13 +9,22 @@ export interface Env {
 export interface User {
   id: string;
   email: string;
+  /** 唯一、不可修改的 @-handle，用于 @ 引用与 URL 定位 */
   username: string;
-  handle: string;
+  /** 可修改、允许重复的显示名 */
+  displayName: string;
   avatar: string;
   bio: string;
   followingCount: number;
   followersCount: number;
   createdAt: string;
+}
+
+export interface UserSummary {
+  id: string;
+  username: string;
+  displayName: string;
+  avatar: string;
 }
 
 export type ContentType = 'game' | 'memory' | 'generator' | 'other';

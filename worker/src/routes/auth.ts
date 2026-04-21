@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, User } from '../types';
 import { signJWT } from '../middleware/auth';
+import { generateUniqueUsername, getUserById } from '../services/users';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -40,12 +41,12 @@ auth.post('/login', async (c) => {
 
   if (!userId) {
     userId = `u_${crypto.randomUUID().slice(0, 8)}`;
-    const handle = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+    const username = await generateUniqueUsername(c.env.KV, email);
     user = {
       id: userId,
       email,
-      username: handle,
-      handle,
+      username,
+      displayName: username,
       avatar: '😀',
       bio: '',
       followingCount: 0,
@@ -54,9 +55,11 @@ auth.post('/login', async (c) => {
     };
     await c.env.KV.put(`users:${userId}`, JSON.stringify(user));
     await c.env.KV.put(`users:email:${email}`, userId);
+    await c.env.KV.put(`users:username:${username}`, userId);
   } else {
-    const userData = await c.env.KV.get(`users:${userId}`);
-    user = JSON.parse(userData!);
+    const loaded = await getUserById(c.env.KV, userId);
+    if (!loaded) return c.json({ success: false, error: 'User not found' }, 500);
+    user = loaded;
   }
 
   const token = await signJWT({ sub: userId, email }, c.env.JWT_SECRET);

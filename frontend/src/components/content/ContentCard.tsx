@@ -1,5 +1,6 @@
 import type { Content } from '../../types';
 import { formatCount } from '../../utils/format';
+import { useTranslation } from '../../i18n';
 
 interface ContentCardProps {
   content: Content;
@@ -10,6 +11,7 @@ interface ContentCardProps {
 }
 
 export default function ContentCard({ content, onClick, showManage, onEdit, onDelete }: ContentCardProps) {
+  const { t } = useTranslation();
   const hasCode = content.code && content.code.length > 50;
 
   return (
@@ -57,14 +59,14 @@ export default function ContentCard({ content, onClick, showManage, onEdit, onDe
               className="flex-1 text-[12px] font-medium rounded-[var(--radius-sm)] text-muted-fg hover:bg-muted hover:text-fg transition-colors"
               style={{ padding: '6px 0' }}
             >
-              编辑
+              {t('card.edit')}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
               className="flex-1 text-[12px] font-medium rounded-[var(--radius-sm)] text-red-400 hover:bg-red-500/10 transition-colors"
               style={{ padding: '6px 0' }}
             >
-              删除
+              {t('card.delete')}
             </button>
           </div>
         )}

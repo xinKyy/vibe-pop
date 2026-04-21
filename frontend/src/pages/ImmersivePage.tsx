@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import FeedItem from '../components/content/FeedItem';
 import { api } from '../api/client';
 import type { Content } from '../types';
+import { useTranslation } from '../i18n';
 
 const SWITCH_AREA_HEIGHT = 80;
 const SWITCH_DISTANCE_RATIO = 0.18;
@@ -11,6 +12,7 @@ const SWITCH_VELOCITY_THRESHOLD = 0.5;
 export default function ImmersivePage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const targetContentId = (location.state as { contentId?: string })?.contentId;
   const [contents, setContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,18 +136,18 @@ export default function ImmersivePage() {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
-          返回
+          {t('common.back')}
         </button>
 
         {loading ? (
           <div className="h-full flex flex-col items-center justify-center text-dim">
             <div className="text-3xl mb-4 opacity-40">···</div>
-            <div className="text-[15px] font-semibold">加载中</div>
+            <div className="text-[15px] font-semibold">{t('common.loading')}</div>
           </div>
         ) : contents.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-dim">
             <div className="text-5xl mb-5 opacity-30">◇</div>
-            <div className="text-[15px] font-semibold mb-2">暂无内容</div>
+            <div className="text-[15px] font-semibold mb-2">{t('immersive.empty.title')}</div>
           </div>
         ) : (
           <>
@@ -193,7 +195,7 @@ export default function ImmersivePage() {
               onPointerCancel={onPointerUp}
             >
               <div className="flex items-center justify-center h-full gap-2 pointer-events-none">
-                <span className="text-white/80 text-[14px] font-semibold tracking-wide">↑↓ 滑动切换内容</span>
+                <span className="text-white/80 text-[14px] font-semibold tracking-wide">{t('immersive.swipeHint')}</span>
                 <span className="text-white/40 text-[12px] font-medium tabular-nums">
                   {currentIndex + 1} / {contents.length}
                 </span>

@@ -70,3 +70,19 @@ VibePop/
 - **社交互动**: 点赞、收藏、评论、关注
 - **个人主页**: 作品管理、社交关系
 - **开放 API**: 支持 Agent 接入创作
+
+## 部署
+
+生产环境部署到 Cloudflare（Workers + Pages + KV）。完整流程见 [`docs/deployment.md`](./docs/deployment.md)。
+
+日常一键发版：
+
+```bash
+cd worker && npm run typecheck
+cd ../frontend && npm run build
+cd ../worker && npm run deploy
+cd .. && npx wrangler pages deploy frontend/dist --project-name=vibepop --branch=main --commit-dirty=true
+```
+
+- 前端：<https://vibepop.pages.dev>
+- API：<https://vibepop-api.zyhh1611054604.workers.dev/api>

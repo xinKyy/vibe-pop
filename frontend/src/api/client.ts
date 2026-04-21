@@ -119,6 +119,8 @@ export const api = {
   users: {
     me: () => request<{ success: boolean; data: any }>('/users/me'),
     get: (id: string) => request<{ success: boolean; data: any }>(`/users/${id}`),
+    updateMe: (body: { displayName?: string; avatar?: string; bio?: string }) =>
+      request<{ success: boolean; data: any; error?: string }>('/users/me', { method: 'PUT', body: JSON.stringify(body) }),
     contents: (id: string, page = 1) =>
       request<{ success: boolean; data: { items: any[]; hasMore: boolean } }>(`/users/${id}/contents?page=${page}`),
   },

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../../api/client';
 import { useAuthStore } from '../../stores/authStore';
 import type { Comment } from '../../types';
+import { useTranslation } from '../../i18n';
 
 interface CommentSheetProps {
   contentId: string;
@@ -19,6 +20,7 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
   const composingRef = useRef(false);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const currentUser = useAuthStore((s) => s.user);
+  const { t, language } = useTranslation();
 
   const fetchComments = useCallback(async () => {
     setLoading(true);
@@ -54,8 +56,8 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
       userId: currentUser?.id || '',
       user: {
         id: currentUser?.id || '',
-        username: currentUser?.username || '我',
-        handle: currentUser?.handle || 'me',
+        username: currentUser?.username || 'me',
+        displayName: currentUser?.displayName || t('comment.me'),
         avatar: currentUser?.avatar || '👤',
       },
       text,
@@ -102,7 +104,7 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
         </div>
 
         <div className="flex items-center justify-between" style={{ padding: '0 20px 14px' }}>
-          <span className="text-[15px] font-semibold">评论 ({comments.length})</span>
+          <span className="text-[15px] font-semibold">{t('comment.title', { count: comments.length })}</span>
           <button onClick={onClose} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-dim text-sm hover:bg-border hover:text-fg transition-all duration-200">
             ✕
           </button>
@@ -114,12 +116,12 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
           {loading ? (
             <div className="text-center text-dim" style={{ padding: '48px 0' }}>
               <div className="text-3xl opacity-40" style={{ marginBottom: 16 }}>···</div>
-              <div className="text-[14px] font-medium">加载中</div>
+              <div className="text-[14px] font-medium">{t('common.loading')}</div>
             </div>
           ) : comments.length === 0 ? (
             <div className="text-center text-dim" style={{ padding: '48px 0' }}>
               <div className="text-4xl opacity-30" style={{ marginBottom: 16 }}>◇</div>
-              <div className="text-[14px] font-medium">还没有评论，来说点什么吧</div>
+              <div className="text-[14px] font-medium">{t('comment.empty')}</div>
             </div>
           ) : (
             comments.map((comment, i) => (
@@ -128,14 +130,19 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
                   {comment.user?.avatar || '👤'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] text-accent font-semibold">
-                    @{comment.user?.username || '匿名'}
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-[13px] text-fg font-semibold">
+                      {comment.user?.displayName || t('common.anonymous')}
+                    </span>
+                    <span className="text-[12px] text-dim font-medium">
+                      @{comment.user?.username || 'anon'}
+                    </span>
                   </div>
                   <div className="text-[14px] text-fg/80 break-words leading-relaxed" style={{ marginTop: 4 }}>
                     {comment.text}
                   </div>
                   <div className="text-[12px] text-dim font-medium" style={{ marginTop: 8 }}>
-                    {new Date(comment.createdAt).toLocaleDateString('zh-CN')}
+                    {new Date(comment.createdAt).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US')}
                   </div>
                 </div>
               </div>
@@ -151,7 +158,7 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
             onCompositionStart={() => { composingRef.current = true; }}
             onCompositionEnd={() => { composingRef.current = false; }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !composingRef.current) handleSubmit(); }}
-            placeholder={isLoggedIn ? '说点什么...' : '登录后即可评论'}
+            placeholder={isLoggedIn ? t('comment.placeholder') : t('comment.placeholder.notLoggedIn')}
             disabled={!isLoggedIn}
             className="flex-1 bg-muted text-[14px] text-fg outline-none focus:ring-1 focus:ring-accent placeholder:text-dim transition-all disabled:opacity-50"
             style={{ padding: '10px 16px', borderRadius: 9999 }}
@@ -162,7 +169,7 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
             className="bg-accent text-accent-fg text-[14px] font-semibold active:scale-95 transition-all disabled:opacity-40 flex-shrink-0"
             style={{ padding: '10px 20px', borderRadius: 9999 }}
           >
-            {submitting ? '···' : '发送'}
+            {submitting ? '···' : t('comment.send')}
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@ import CodeEditor from './CodeEditor';
 import AssetManager from './AssetManager';
 import { injectAssets, type Asset } from '../../utils/assets';
 import { validateHtml } from '../../utils/htmlValidate';
+import { useTranslation } from '../../i18n';
 
 type TabKey = 'preview' | 'code' | 'assets';
 
@@ -25,6 +26,7 @@ export default function PreviewWorkspace({
   assets,
   onAssetsChange,
 }: PreviewWorkspaceProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>('preview');
   const [editorCode, setEditorCode] = useState(code);
 
@@ -54,9 +56,9 @@ export default function PreviewWorkspace({
   };
 
   const tabs: Array<{ key: TabKey; label: string; badge?: string }> = [
-    { key: 'preview', label: '预览' },
-    { key: 'code', label: '代码', badge: dirty ? '●' : undefined },
-    { key: 'assets', label: `资源${assets.length > 0 ? ` ${assets.length}` : ''}` },
+    { key: 'preview', label: t('workspace.tabs.preview') },
+    { key: 'code', label: t('workspace.tabs.code'), badge: dirty ? '●' : undefined },
+    { key: 'assets', label: `${t('workspace.tabs.assets')}${assets.length > 0 ? ` ${assets.length}` : ''}` },
   ];
 
   return (
@@ -120,19 +122,19 @@ export default function PreviewWorkspace({
                 className="bg-accent text-accent-fg text-[12px] font-semibold rounded-[var(--radius-sm)] disabled:opacity-30 active:scale-[0.98] hover:brightness-110 transition-all"
                 style={{ padding: '7px 16px' }}
               >
-                应用修改
+                {t('workspace.apply')}
               </button>
               <button
                 onClick={resetEdit}
                 className="bg-muted text-muted-fg hover:bg-border hover:text-fg text-[12px] font-semibold rounded-[var(--radius-sm)] transition-all"
                 style={{ padding: '7px 14px' }}
               >
-                重置
+                {t('workspace.reset')}
               </button>
               <div className="ml-auto text-[11px] text-dim">
-                {oversize && <span className="text-red-400">代码体积超出限制 · </span>}
-                {errors > 0 && <span className="text-red-400">{errors} 个标签错误 · </span>}
-                {dirty ? '有未保存修改' : '已同步'}
+                {oversize && <span className="text-red-400">{t('workspace.status.oversize')}</span>}
+                {errors > 0 && <span className="text-red-400">{t('workspace.status.tagErrors', { count: errors })}</span>}
+                {dirty ? t('workspace.status.dirty') : t('workspace.status.synced')}
               </div>
             </div>
           </div>
