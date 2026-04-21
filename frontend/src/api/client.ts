@@ -1,4 +1,5 @@
 import { useAuthStore } from '../stores/authStore';
+import type { PromptTemplateDTO } from '../types';
 
 const BASE_URL = import.meta.env.PROD
   ? 'https://vibepop-api.zyhh1611054604.workers.dev/api'
@@ -97,11 +98,12 @@ export const api = {
   },
 
   contents: {
-    list: (params?: { page?: number; limit?: number; type?: string }) => {
+    list: (params?: { page?: number; limit?: number; type?: string; sort?: 'hot' | 'latest' }) => {
       const query = new URLSearchParams();
       if (params?.page) query.set('page', String(params.page));
       if (params?.limit) query.set('limit', String(params.limit));
       if (params?.type) query.set('type', params.type);
+      if (params?.sort) query.set('sort', params.sort);
       return request<{ success: boolean; data: { items: any[]; total: number; hasMore: boolean } }>(`/contents?${query}`);
     },
     feed: (page = 1) =>
@@ -176,7 +178,7 @@ export const api = {
   },
 
   getTemplates: async () => {
-    const res = await request<{ success: boolean; data: any[] }>('/templates');
+    const res = await request<{ success: boolean; data: PromptTemplateDTO[] }>('/templates');
     return res.data;
   },
 };

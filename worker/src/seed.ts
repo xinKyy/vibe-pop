@@ -27,9 +27,59 @@ const playCounts: Record<string, number> = {
   birthday_card: 1800,
 };
 
+/** ContentType schema version；每次调整分类映射都要升；启动时会执行对应迁移 */
+const SCHEMA_VERSION = '2';
+
+/** 老分类 → 新分类 映射。修改 ContentType 时在这里登记映射规则。 */
+const CATEGORY_MIGRATIONS: Record<string, string> = {
+  memory: 'album',
+  generator: 'tool',
+};
+
+/** 把存量内容按 {@link CATEGORY_MIGRATIONS} 迁移 type，并重建 `contents:category:*` 索引。 */
+async function migrateContentCategories(kv: KVNamespace) {
+  const listJson = await kv.get('contents:list');
+  if (!listJson) return;
+
+  const ids: string[] = JSON.parse(listJson);
+  const newCategoryMap: Record<string, string[]> = {};
+  const oldCategories = new Set<string>();
+
+  for (const id of ids) {
+    const raw = await kv.get(`contents:${id}`);
+    if (!raw) continue;
+    const content: Content = JSON.parse(raw);
+    const oldType = content.type as unknown as string;
+    const mapped = CATEGORY_MIGRATIONS[oldType];
+    if (mapped) {
+      oldCategories.add(oldType);
+      content.type = mapped as Content['type'];
+      await kv.put(`contents:${id}`, JSON.stringify(content));
+    }
+    const finalType = content.type as unknown as string;
+    (newCategoryMap[finalType] ??= []).push(id);
+  }
+
+  // 删掉旧分类索引
+  for (const oldType of oldCategories) {
+    await kv.delete(`contents:category:${oldType}`);
+  }
+  // 重建新分类索引（用最新 list 顺序写入，保持原相对顺序）
+  for (const [cat, catIds] of Object.entries(newCategoryMap)) {
+    await kv.put(`contents:category:${cat}`, JSON.stringify(catIds));
+  }
+}
+
 export async function seedDatabase(kv: KVNamespace) {
   // Prompt 模板每次启动都同步一次（覆盖历史版本，内容很小）
   await kv.put('templates:featured', JSON.stringify(PROMPT_TEMPLATES));
+
+  // Schema 迁移：ContentType 调整时执行一次
+  const currentVer = await kv.get('schema:version');
+  if (currentVer !== SCHEMA_VERSION) {
+    await migrateContentCategories(kv);
+    await kv.put('schema:version', SCHEMA_VERSION);
+  }
 
   const existingList = await kv.get('contents:list');
   if (existingList) {

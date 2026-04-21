@@ -29,7 +29,7 @@ export interface UserSummary {
   avatar: string;
 }
 
-export type ContentType = 'game' | 'memory' | 'generator' | 'other';
+export type ContentType = 'game' | 'album' | 'tool' | 'art' | 'guide' | 'other';
 
 export interface Content {
   id: string;

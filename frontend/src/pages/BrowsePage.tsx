@@ -7,27 +7,44 @@ import { api } from '../api/client';
 import type { Content } from '../types';
 import { useTranslation, type TranslationKey } from '../i18n';
 
-type CategoryKey = 'all' | 'game' | 'memory' | 'generator' | 'other';
-const categories: { key: CategoryKey; labelKey: TranslationKey; type?: string }[] = [
-  { key: 'all', labelKey: 'browse.categories.all', type: undefined },
+/**
+ * 发现页筛选 tab。同一横排里混合了「排序维度」和「分类维度」：
+ * - all / hot / latest 不过滤 type，仅改变排序方式
+ * - 其余 tab 按对应 ContentType 过滤，内部按最新排序
+ */
+type TabKey = 'all' | 'hot' | 'latest' | 'game' | 'album' | 'tool' | 'art' | 'guide' | 'other';
+
+interface BrowseTab {
+  key: TabKey;
+  labelKey: TranslationKey;
+  type?: string;
+  sort?: 'hot' | 'latest';
+}
+
+const BROWSE_TABS: BrowseTab[] = [
+  { key: 'all', labelKey: 'browse.categories.all' },
+  { key: 'hot', labelKey: 'browse.sort.hot', sort: 'hot' },
+  { key: 'latest', labelKey: 'browse.sort.latest', sort: 'latest' },
   { key: 'game', labelKey: 'browse.categories.game', type: 'game' },
-  { key: 'memory', labelKey: 'browse.categories.memory', type: 'memory' },
-  { key: 'generator', labelKey: 'browse.categories.generator', type: 'generator' },
+  { key: 'album', labelKey: 'browse.categories.album', type: 'album' },
+  { key: 'tool', labelKey: 'browse.categories.tool', type: 'tool' },
+  { key: 'art', labelKey: 'browse.categories.art', type: 'art' },
+  { key: 'guide', labelKey: 'browse.categories.guide', type: 'guide' },
   { key: 'other', labelKey: 'browse.categories.other', type: 'other' },
 ];
 
 export default function BrowsePage() {
-  const [category, setCategory] = useState<CategoryKey>('all');
+  const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [listContents, setListContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  const fetchList = useCallback(async (cat: CategoryKey) => {
+  const fetchList = useCallback(async (key: TabKey) => {
     setLoading(true);
     try {
-      const type = categories.find((c) => c.key === cat)?.type;
-      const res = await api.contents.list({ type });
+      const tab = BROWSE_TABS.find((c) => c.key === key);
+      const res = await api.contents.list({ type: tab?.type, sort: tab?.sort });
       setListContents(res.data.items);
     } catch (e) {
       console.error('Failed to fetch list:', e);
@@ -37,12 +54,12 @@ export default function BrowsePage() {
   }, []);
 
   useEffect(() => {
-    fetchList(category);
-  }, [fetchList, category]);
+    fetchList(activeTab);
+  }, [fetchList, activeTab]);
 
-  const handleCategoryChange = (cat: CategoryKey) => {
-    setCategory(cat);
-    fetchList(cat);
+  const handleTabChange = (key: TabKey) => {
+    setActiveTab(key);
+    fetchList(key);
   };
 
   return (
@@ -89,20 +106,20 @@ export default function BrowsePage() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Category filter */}
+        {/* Category + sort tabs (all / hot / latest / specific categories) */}
         <div className="flex overflow-x-auto" style={{ gap: 8, padding: '0 20px 12px' }}>
-          {categories.map((cat) => (
+          {BROWSE_TABS.map((tab) => (
             <button
-              key={cat.key}
-              onClick={() => handleCategoryChange(cat.key)}
+              key={tab.key}
+              onClick={() => handleTabChange(tab.key)}
               className={`text-[13px] font-semibold whitespace-nowrap rounded-[var(--radius-full)] transition-all duration-200 ${
-                category === cat.key
+                activeTab === tab.key
                   ? 'bg-accent text-accent-fg'
                   : 'bg-muted text-muted-fg hover:bg-border hover:text-fg'
               }`}
               style={{ padding: '6px 16px' }}
             >
-              {t(cat.labelKey)}
+              {t(tab.labelKey)}
             </button>
           ))}
         </div>

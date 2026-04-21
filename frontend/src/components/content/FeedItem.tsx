@@ -1,10 +1,11 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Content } from '../../types';
 import { formatCount } from '../../utils/format';
 import { useSocialStore } from '../../stores/socialStore';
 import CommentSheet from '../social/CommentSheet';
 import ShareSheet from '../social/ShareSheet';
+import ConfirmDialog from '../ui/ConfirmDialog';
 import { useTranslation } from '../../i18n';
 
 interface FeedItemProps {
@@ -31,6 +32,7 @@ export default function FeedItem({ content, onRemix, bottomInset = 0, interactiv
   const [showHeart, setShowHeart] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showRemixConfirm, setShowRemixConfirm] = useState(false);
   const lastTapRef = useRef(0);
 
   const handleTap = useCallback((e: React.MouseEvent) => {
@@ -168,13 +170,13 @@ export default function FeedItem({ content, onRemix, bottomInset = 0, interactiv
               onClick={handleToggleFavorite}
             />
             <ActionButton
-              label="✦"
+              label={<ChatBubbleIcon />}
               count={formatCount(commentCount)}
               onClick={() => setShowComments(true)}
             />
             <ActionButton
-              label="↻"
-              onClick={() => onRemix?.(content)}
+              label={<ShuffleIcon />}
+              onClick={() => setShowRemixConfirm(true)}
             />
             <ActionButton
               label="↗"
@@ -194,19 +196,37 @@ export default function FeedItem({ content, onRemix, bottomInset = 0, interactiv
         onCommentCountChange={handleCommentCountChange}
       />
       <ShareSheet content={content} isOpen={showShare} onClose={() => setShowShare(false)} />
+      <ConfirmDialog
+        isOpen={showRemixConfirm}
+        title={t('feed.remix.confirmTitle')}
+        body={t('feed.remix.confirmBody')}
+        confirmLabel={t('feed.remix.confirmAction')}
+        onCancel={() => setShowRemixConfirm(false)}
+        onConfirm={() => {
+          setShowRemixConfirm(false);
+          onRemix?.(content);
+        }}
+      />
     </>
   );
 }
 
 function ActionButton({ label, count, active, onClick }: {
-  label: string;
+  /** 支持字符串 emoji 或 ReactNode（SVG 图标） */
+  label: ReactNode;
   count?: string;
   active?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
-      onClick={onClick}
+      // 阻断按下事件冒泡，避免触发沉浸页的 pointer 拖拽或其它祖先 handler；
+      // 也顺带防止 dialog overlay 误吃本次点击（ghost click）。
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -224,12 +244,34 @@ function ActionButton({ label, count, active, onClick }: {
         boxShadow: active ? '0 0 10px rgba(232,234,26,0.35)' : 'none',
       }}
     >
-      <span style={{ fontSize: 16, lineHeight: 1 }}>{label}</span>
+      <span style={{ fontSize: 16, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{label}</span>
       {count && (
         <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', opacity: active ? 0.8 : 0.7 }}>
           {count}
         </span>
       )}
     </button>
+  );
+}
+
+/** 评论气泡图标（Feather message-circle 风格） */
+function ChatBubbleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
+  );
+}
+
+/** Remix 交换图标（Feather shuffle 风格，贴合"混音/改编"语义） */
+function ShuffleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="16 3 21 3 21 8" />
+      <line x1="4" y1="20" x2="21" y2="3" />
+      <polyline points="21 16 21 21 16 21" />
+      <line x1="15" y1="15" x2="21" y2="21" />
+      <line x1="4" y1="4" x2="9" y2="9" />
+    </svg>
   );
 }

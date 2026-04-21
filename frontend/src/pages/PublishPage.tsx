@@ -5,8 +5,10 @@ import { useTranslation, type TranslationKey } from '../i18n';
 
 const categories: { value: ContentType; labelKey: TranslationKey }[] = [
   { value: 'game', labelKey: 'browse.categories.game' },
-  { value: 'memory', labelKey: 'browse.categories.memory' },
-  { value: 'generator', labelKey: 'browse.categories.generator' },
+  { value: 'album', labelKey: 'browse.categories.album' },
+  { value: 'tool', labelKey: 'browse.categories.tool' },
+  { value: 'art', labelKey: 'browse.categories.art' },
+  { value: 'guide', labelKey: 'browse.categories.guide' },
   { value: 'other', labelKey: 'browse.categories.other' },
 ];
 

@@ -21,6 +21,7 @@ contents.get('/', optionalAuth(), async (c) => {
   const page = parseInt(c.req.query('page') || '1');
   const limit = parseInt(c.req.query('limit') || '20');
   const type = c.req.query('type');
+  const sort = c.req.query('sort'); // 'hot' | 'latest' | undefined（默认按 KV list 顺序，相当于最新）
 
   const listJson = await c.env.KV.get('contents:list');
   const allIds: string[] = listJson ? JSON.parse(listJson) : [];
@@ -29,6 +30,38 @@ contents.get('/', optionalAuth(), async (c) => {
   if (type) {
     const catJson = await c.env.KV.get(`contents:category:${type}`);
     filteredIds = catJson ? JSON.parse(catJson) : [];
+  }
+
+  // 需要排序时先把候选集全部读出来（小数据量内存排序）
+  if (sort === 'hot' || sort === 'latest') {
+    const all: Content[] = [];
+    for (const id of filteredIds) {
+      const data = await c.env.KV.get(`contents:${id}`);
+      if (data) all.push(JSON.parse(data));
+    }
+
+    if (sort === 'hot') {
+      // 简单热度：点赞 + 收藏×2 + 播放×0.1 + 评论×1
+      const score = (x: Content) =>
+        (x.likeCount ?? 0) + (x.favoriteCount ?? 0) * 2 + (x.playCount ?? 0) * 0.1 + (x.commentCount ?? 0);
+      all.sort((a, b) => score(b) - score(a));
+    } else {
+      // latest：publishedAt 优先，缺失回退 createdAt
+      const ts = (x: Content) => new Date(x.publishedAt || x.createdAt || 0).getTime();
+      all.sort((a, b) => ts(b) - ts(a));
+    }
+
+    const total = all.length;
+    const start = (page - 1) * limit;
+    const pageItems = all.slice(start, start + limit);
+    const items = [];
+    for (const content of pageItems) {
+      items.push(await enrichContent(content, c.env.KV));
+    }
+    return c.json({
+      success: true,
+      data: { items, total, page, limit, hasMore: start + limit < total },
+    });
   }
 
   const start = (page - 1) * limit;

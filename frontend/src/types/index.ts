@@ -14,7 +14,7 @@ export interface User {
   onboarded?: boolean;
 }
 
-export type ContentType = 'game' | 'memory' | 'generator' | 'other';
+export type ContentType = 'game' | 'album' | 'tool' | 'art' | 'guide' | 'other';
 
 export interface Content {
   id: string;
@@ -72,6 +72,24 @@ export interface FeaturedTemplate {
   prompt: string;
   emoji: string;
   gradient: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+/** 国际化字段：`zh` 为中文，`en` 为英文。前端按当前语言取值。 */
+export interface LocalizedText {
+  zh: string;
+  en: string;
+}
+
+/** 后端 `/api/templates` 返回的提示词模板 DTO（中英双语） */
+export interface PromptTemplateDTO {
+  id: string;
+  emoji: string;
+  gradient: string;
+  title: LocalizedText;
+  description: LocalizedText;
+  prompt: LocalizedText;
   sortOrder: number;
   isActive: boolean;
 }

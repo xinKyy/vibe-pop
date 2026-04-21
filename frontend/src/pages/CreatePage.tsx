@@ -7,25 +7,28 @@ import ExternalAIPanel from '../components/create/ExternalAIPanel';
 import { api } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { injectAssets, type Asset } from '../utils/assets';
-import type { Content, ContentType } from '../types';
+import type { Content, ContentType, PromptTemplateDTO } from '../types';
 import { useTranslation, type TranslationKey } from '../i18n';
+import type { Language } from '../stores/settingsStore';
 
 type Stage = 'input' | 'generating' | 'preview' | 'publish';
 type CreateMode = 'builtin' | 'external';
 
-interface Template {
-  id: string;
-  title: string;
-  emoji: string;
-  gradient: string;
-  prompt: string;
+/** 根据当前语言挑选 i18n 文案；缺失时回退到中文，再到英文，最后给空串 */
+function pickLocalized(
+  value: { zh: string; en: string } | string | undefined | null,
+  language: Language,
+): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return value[language] ?? value.zh ?? value.en ?? '';
 }
 
 export default function CreatePage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isLoggedIn } = useAuthStore();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const remixContent = (location.state as { remix?: Content })?.remix;
 
   const [prompt, setPrompt] = useState(
@@ -47,7 +50,7 @@ export default function CreatePage() {
   const [generatedMeta] = useState<{ title?: string; description?: string; type?: string; coverEmoji?: string; coverGradient?: string }>({});
   const [chatInput, setChatInput] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templates, setTemplates] = useState<PromptTemplateDTO[]>([]);
 
   const [publishTitle, setPublishTitle] = useState('');
   const [publishDesc, setPublishDesc] = useState('');
@@ -110,8 +113,8 @@ export default function CreatePage() {
     generate(input.trim(), currentCode);
   };
 
-  const handleTemplateClick = (tmpl: Template) => {
-    setPrompt(tmpl.prompt);
+  const handleTemplateClick = (tmpl: PromptTemplateDTO) => {
+    setPrompt(pickLocalized(tmpl.prompt, language));
   };
 
   const handleExternalCode = (code: string) => {
@@ -259,8 +262,10 @@ export default function CreatePage() {
   if (stage === 'publish') {
     const publishCategories: { value: ContentType; labelKey: TranslationKey }[] = [
       { value: 'game', labelKey: 'browse.categories.game' },
-      { value: 'memory', labelKey: 'browse.categories.memory' },
-      { value: 'generator', labelKey: 'browse.categories.generator' },
+      { value: 'album', labelKey: 'browse.categories.album' },
+      { value: 'tool', labelKey: 'browse.categories.tool' },
+      { value: 'art', labelKey: 'browse.categories.art' },
+      { value: 'guide', labelKey: 'browse.categories.guide' },
       { value: 'other', labelKey: 'browse.categories.other' },
     ];
     return (
@@ -370,7 +375,7 @@ export default function CreatePage() {
                   <span className="text-[12px] font-semibold text-dim mx-5">{t('create.templates.inspiration')}</span>
                   {templates.map((tmpl) => (
                     <span key={tmpl.id} className="text-[12px] font-semibold text-muted-fg mx-5">
-                      {tmpl.emoji} {tmpl.title}
+                      {tmpl.emoji} {pickLocalized(tmpl.title, language)}
                     </span>
                   ))}
                 </Marquee>
@@ -398,13 +403,13 @@ export default function CreatePage() {
                     </div>
                     <div style={{ padding: 12 }}>
                       <div className="text-[13px] font-semibold group-hover:text-accent transition-colors" style={{ marginBottom: 4 }}>
-                        {tmpl.title}
+                        {pickLocalized(tmpl.title, language)}
                       </div>
                       <div
                         className="text-[11px] text-dim font-medium leading-snug"
                         style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                       >
-                        {tmpl.prompt}
+                        {pickLocalized(tmpl.description, language) || pickLocalized(tmpl.prompt, language)}
                       </div>
                     </div>
                   </button>

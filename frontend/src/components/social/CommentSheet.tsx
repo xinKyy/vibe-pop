@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../../api/client';
 import { useAuthStore } from '../../stores/authStore';
 import type { Comment } from '../../types';
 import { useTranslation } from '../../i18n';
+import { useDismissOnOutside } from '../../hooks/useDismissOnOutside';
 
 interface CommentSheetProps {
   contentId: string;
@@ -17,7 +19,9 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
   const [submitting, setSubmitting] = useState(false);
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const composingRef = useRef(false);
+  useDismissOnOutside(isOpen, onClose, panelRef);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const currentUser = useAuthStore((s) => s.user);
   const { t, language } = useTranslation();
@@ -92,12 +96,12 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[2000] flex items-end justify-center" onClick={onClose}>
+  const sheet = (
+    <div className="fixed inset-0 z-[2000] flex items-end justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
+        ref={panelRef}
         className="relative w-full max-w-[430px] max-h-[65vh] bg-bg flex flex-col animate-slide-up rounded-t-[var(--radius-xl)]"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-center" style={{ padding: '14px 0' }}>
           <div className="w-9 h-1 bg-border/60 rounded-full" />
@@ -130,7 +134,7 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
                   {comment.user?.avatar || '👤'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-1.5">
+                  <div className="flex items-baseline" style={{ gap: 6 }}>
                     <span className="text-[13px] text-fg font-semibold">
                       {comment.user?.displayName || t('common.anonymous')}
                     </span>
@@ -175,4 +179,6 @@ export default function CommentSheet({ contentId, isOpen, onClose, onCommentCoun
       </div>
     </div>
   );
+
+  return createPortal(sheet, document.body);
 }
