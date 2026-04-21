@@ -104,10 +104,11 @@ async function streamRequest(
 
 export const api = {
   auth: {
-    sendCode: (email: string) =>
-      request<{ success: boolean; data: { message: string } }>('/auth/send-code', { method: 'POST', body: JSON.stringify({ email }) }),
-    login: (email: string, code: string) =>
-      request<{ success: boolean; data: { user: any; token: string; isNewUser: boolean } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, code }) }),
+    google: (idToken: string) =>
+      request<{ success: boolean; data: { user: any; token: string; isNewUser: boolean } }>(
+        '/auth/google',
+        { method: 'POST', body: JSON.stringify({ idToken }) },
+      ),
   },
 
   contents: {

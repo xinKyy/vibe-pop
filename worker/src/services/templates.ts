@@ -248,9 +248,9 @@ export const PROMPT_TEMPLATES: PromptTemplate[] = [
 
 【变量 - 请替换为你的内容】
 - {{avatar_url: "头像URL"}} — 个人头像
-- {{name: "显示名称"}} — 如：Yuuu
-- {{handle: "用户名"}} — 如：@web3_yuuu
-- {{bio: "个人简介"}} — 如：Web3 PM / 公众号「圈圈的叨比叨」
+- {{name: "显示名称"}}
+- {{handle: "用户名"}}
+- {{bio: "个人简介"}}
 - {{links: [
     {platform: "Twitter", url: "https://twitter.com/xxx"},
     {platform: "GitHub", url: "https://github.com/xxx"},
@@ -279,9 +279,9 @@ export const PROMPT_TEMPLATES: PromptTemplate[] = [
 
 【Variables - Replace with your content】
 - {{avatar_url: "Avatar URL"}} — Profile photo
-- {{name: "Display Name"}} — e.g. Yuuu
-- {{handle: "Username"}} — e.g. @web3_yuuu
-- {{bio: "Bio"}} — e.g. Web3 PM / Creator
+- {{name: "Display Name"}}
+- {{handle: "Username"}}
+- {{bio: "Bio"}}
 - {{links: [
     {platform: "Twitter", url: "https://twitter.com/xxx"},
     {platform: "GitHub", url: "https://github.com/xxx"},

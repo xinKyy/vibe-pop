@@ -49,6 +49,7 @@ export default function CreatePage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [generatedMeta] = useState<{ title?: string; description?: string; type?: string; coverEmoji?: string; coverGradient?: string }>({});
   const [chatInput, setChatInput] = useState('');
+  const [chatPanelOpen, setChatPanelOpen] = useState(true);
   const [statusMsg, setStatusMsg] = useState('');
   const [templates, setTemplates] = useState<PromptTemplateDTO[]>([]);
 
@@ -237,23 +238,38 @@ export default function CreatePage() {
           />
         </div>
 
-        <div className="border-t border-border/50" style={{ padding: '16px 20px' }}>
-          <div className="bg-surface rounded-[var(--radius-sm)] text-[13px] text-muted-fg leading-relaxed" style={{ padding: 16, marginBottom: 12 }}>
-            {remixContent ? t('create.hint.remix') : t('create.hint.normal')}
-          </div>
-          <div className="flex" style={{ gap: 12 }}>
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleChatSend()}
-              placeholder={t('create.chat.placeholder')}
-              className="flex-1 bg-muted rounded-[var(--radius-sm)] text-[14px] text-fg outline-none focus:ring-1 focus:ring-accent placeholder:text-dim transition-all"
-              style={{ padding: '12px 16px' }}
-            />
-            <button onClick={handleChatSend} className="bg-accent text-accent-fg rounded-[var(--radius-sm)] flex items-center justify-center font-semibold active:scale-90 transition-all flex-shrink-0" style={{ width: 48, height: 48 }}>
-              →
-            </button>
-          </div>
+        <div className="border-t border-border/50">
+          <button
+            type="button"
+            onClick={() => setChatPanelOpen((v) => !v)}
+            aria-expanded={chatPanelOpen}
+            aria-label={chatPanelOpen ? t('create.chat.collapse') : t('create.chat.expand')}
+            className="w-full flex items-center justify-center text-[12px] text-dim hover:text-fg transition-colors"
+            style={{ padding: '8px 0', gap: 6 }}
+          >
+            <span className="text-[14px] leading-none">{chatPanelOpen ? '⌄' : '⌃'}</span>
+            <span>{chatPanelOpen ? t('create.chat.collapse') : t('create.chat.expand')}</span>
+          </button>
+          {chatPanelOpen && (
+            <div style={{ padding: '0 20px 16px' }}>
+              <div className="bg-surface rounded-[var(--radius-sm)] text-[13px] text-muted-fg leading-relaxed" style={{ padding: 16, marginBottom: 12 }}>
+                {remixContent ? t('create.hint.remix') : t('create.hint.normal')}
+              </div>
+              <div className="flex" style={{ gap: 12 }}>
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleChatSend()}
+                  placeholder={t('create.chat.placeholder')}
+                  className="flex-1 bg-muted rounded-[var(--radius-sm)] text-[14px] text-fg outline-none focus:ring-1 focus:ring-accent placeholder:text-dim transition-all"
+                  style={{ padding: '12px 16px' }}
+                />
+                <button onClick={handleChatSend} className="bg-accent text-accent-fg rounded-[var(--radius-sm)] flex items-center justify-center font-semibold active:scale-90 transition-all flex-shrink-0" style={{ width: 48, height: 48 }}>
+                  →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
