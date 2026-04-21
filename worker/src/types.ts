@@ -4,6 +4,7 @@ export interface Env {
   JWT_SECRET: string;
   AI_API_KEY?: string;
   AI_BASE_URL?: string;
+  AI_MODEL?: string;
 }
 
 export interface User {

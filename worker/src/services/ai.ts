@@ -30,7 +30,8 @@ export function generateContentStream(
   env: Env
 ): ReadableStream {
   const apiKey = env.AI_API_KEY;
-  const baseUrl = env.AI_BASE_URL || 'https://api.deepseek.com/v1';
+  const baseUrl = env.AI_BASE_URL || 'https://api.dgrid.ai/v1';
+  const model = env.AI_MODEL || 'anthropic/claude-haiku-4.5';
 
   if (!apiKey) {
     const fallback = generateFallbackContent(prompt);
@@ -46,14 +47,30 @@ export function generateContentStream(
 
   const messages = buildMessages(prompt, existingCode);
   const url = `${baseUrl}/chat/completions`;
-  console.log('[AI Stream] Calling:', url, 'model: deepseek-chat');
+  console.log('[AI Stream] Calling:', url, 'model:', model);
 
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
 
+  // 心跳：每 15s 发一个 SSE 注释行，防止中间层（Cloudflare / 反代 / 浏览器代理）
+  // 在 DeepSeek 首 token 延迟较长或生成中途停顿时把 idle 连接掐掉（CF 默认 100s 触发 524）。
+  let streamClosed = false;
+  const heartbeatTimer = setInterval(() => {
+    if (streamClosed) return;
+    writer.write(encoder.encode(`: ping ${Date.now()}\n\n`)).catch(() => {
+      streamClosed = true;
+    });
+  }, 15000);
+  const stopHeartbeat = () => {
+    streamClosed = true;
+    clearInterval(heartbeatTimer);
+  };
+
   (async () => {
     try {
+      await writer.write(encoder.encode(': stream-open\n\n'));
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -61,7 +78,7 @@ export function generateContentStream(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model,
           messages,
           max_tokens: 4096,
           temperature: 0.7,
@@ -75,7 +92,6 @@ export function generateContentStream(
         const fallback = generateFallbackContent(prompt);
         await writer.write(encoder.encode(`data: ${JSON.stringify({ content: fallback })}\n\n`));
         await writer.write(encoder.encode('data: [DONE]\n\n'));
-        await writer.close();
         return;
       }
 
@@ -116,16 +132,21 @@ export function generateContentStream(
       if (!buffer.includes('[DONE]')) {
         await writer.write(encoder.encode('data: [DONE]\n\n'));
       }
-      await writer.close();
     } catch (error: any) {
       console.error('[AI Stream] Error:', error?.message || error);
       try {
         const fallback = generateFallbackContent(prompt);
         await writer.write(encoder.encode(`data: ${JSON.stringify({ content: fallback })}\n\n`));
         await writer.write(encoder.encode('data: [DONE]\n\n'));
+      } catch {
+        // writer 已坏，下面 finally 里 close/abort 会兜底
+      }
+    } finally {
+      stopHeartbeat();
+      try {
         await writer.close();
       } catch {
-        await writer.abort();
+        try { await writer.abort(); } catch { /* ignore */ }
       }
     }
   })();
@@ -139,7 +160,8 @@ export async function generateContent(
   env: Env
 ): Promise<string> {
   const apiKey = env.AI_API_KEY;
-  const baseUrl = env.AI_BASE_URL || 'https://api.deepseek.com/v1';
+  const baseUrl = env.AI_BASE_URL || 'https://api.dgrid.ai/v1';
+  const model = env.AI_MODEL || 'anthropic/claude-haiku-4.5';
 
   if (!apiKey) {
     return generateFallbackContent(prompt);
@@ -148,7 +170,7 @@ export async function generateContent(
   try {
     const messages = buildMessages(prompt, existingCode);
     const url = `${baseUrl}/chat/completions`;
-    console.log('[AI] Calling:', url, 'model: deepseek-chat');
+    console.log('[AI] Calling:', url, 'model:', model);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -157,7 +179,7 @@ export async function generateContent(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model,
         messages,
         max_tokens: 4096,
         temperature: 0.7,

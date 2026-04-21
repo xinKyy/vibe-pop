@@ -3,4 +3,5 @@
 # 生产环境请改用 `wrangler secret put <KEY>` 注入，不要提交任何真实密钥。
 JWT_SECRET=replace-with-a-long-random-string
 AI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-AI_BASE_URL=https://api.deepseek.com/v1
+AI_BASE_URL=https://api.dgrid.ai/v1
+AI_MODEL=anthropic/claude-haiku-4.5
