@@ -64,6 +64,14 @@ auth.post('/login', async (c) => {
     const loaded = await getUserById(c.env.KV, userId);
     if (!loaded) return c.json({ success: false, error: 'User not found' }, 500);
     user = loaded;
+
+    // 自愈：早期逻辑把"未完成引导"的占位账号错误标成 onboarded=true（displayName 为空且 username 还是 userId 占位）。
+    // 纠正回 onboarded=false，让用户能正常进入引导流程。
+    if (user.onboarded && !user.displayName && user.username === user.id) {
+      user = { ...user, onboarded: false };
+      await c.env.KV.put(`users:${userId}`, JSON.stringify(user));
+    }
+
     isNewUser = !user.onboarded;
   }
 
