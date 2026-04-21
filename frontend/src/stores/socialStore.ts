@@ -54,7 +54,8 @@ export const useSocialStore = create<SocialState>((set, get) => ({
     set({ likedContentIds: next });
 
     if (useAuthStore.getState().isLoggedIn) {
-      api.social.like(contentId).catch(() => {
+      api.social.like(contentId).catch((err) => {
+        console.error('[social] like failed:', contentId, err);
         const revert = new Set(get().likedContentIds);
         wasLiked ? revert.add(contentId) : revert.delete(contentId);
         set({ likedContentIds: revert });
@@ -72,7 +73,8 @@ export const useSocialStore = create<SocialState>((set, get) => ({
     set({ favoritedContentIds: next });
 
     if (useAuthStore.getState().isLoggedIn) {
-      api.social.favorite(contentId).catch(() => {
+      api.social.favorite(contentId).catch((err) => {
+        console.error('[social] favorite failed:', contentId, err);
         const revert = new Set(get().favoritedContentIds);
         wasFaved ? revert.add(contentId) : revert.delete(contentId);
         set({ favoritedContentIds: revert });
@@ -90,7 +92,8 @@ export const useSocialStore = create<SocialState>((set, get) => ({
     set({ followingUserIds: next });
 
     if (useAuthStore.getState().isLoggedIn) {
-      api.social.follow(userId).catch(() => {
+      api.social.follow(userId).catch((err) => {
+        console.error('[social] follow failed:', userId, err);
         const revert = new Set(get().followingUserIds);
         wasFollowing ? revert.add(userId) : revert.delete(userId);
         set({ followingUserIds: revert });

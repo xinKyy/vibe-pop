@@ -27,7 +27,20 @@ async function request<T>(path: string, options: RequestInit & { timeout?: numbe
   }
 
   const res = await fetch(`${BASE_URL}${path}`, { ...fetchOptions, headers, signal });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({ error: `Invalid response (${res.status})` }));
+
+  // 登录态失效：清掉本地 token 并把用户踢回登录页。
+  // 只拦截需要鉴权的路径（/auth/* 本身就是登录流程，它的 400/401 由业务自己处理）。
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    try {
+      useAuthStore.getState().logout();
+    } catch {
+      // ignore
+    }
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
 
   if (!res.ok) {
     throw new Error(data.error || `Request failed: ${res.status}`);

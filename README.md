@@ -36,10 +36,13 @@ npm run dev
 ```bash
 cd worker
 npm install
+cp .dev.vars.example .dev.vars   # 首次启动前，填入本地的 JWT_SECRET / AI_API_KEY / AI_BASE_URL
 npm run dev
 ```
 
 API 运行在 http://localhost:8787
+
+> `.dev.vars` 是 Wrangler 的本地环境变量文件，已被 `.gitignore` 忽略，**切勿提交真实密钥**。生产环境通过 `wrangler secret put <KEY>` 注入。
 
 ## 项目结构
 

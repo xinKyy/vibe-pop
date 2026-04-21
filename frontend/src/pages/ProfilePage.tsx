@@ -19,6 +19,9 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const { isLoggedIn, user, updateUser, logout } = useAuthStore();
   const resetSocial = useSocialStore((s) => s.reset);
+  // 订阅 liked / favorited 集合，用户在任意页面点赞后回到这里能自动刷新列表
+  const likedIds = useSocialStore((s) => s.likedContentIds);
+  const favoritedIds = useSocialStore((s) => s.favoritedContentIds);
   const { t, language, setLanguage } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>('works');
   const [myContents, setMyContents] = useState<Content[]>([]);
@@ -86,6 +89,16 @@ export default function ProfilePage() {
     if (activeTab === 'likes' && !loadedTab.likes) fetchMyLikes();
     if (activeTab === 'favorites' && !loadedTab.favorites) fetchMyFavorites();
   }, [isLoggedIn, activeTab, loadedTab, fetchMyContents, fetchMyLikes, fetchMyFavorites]);
+
+  // 当社交状态变化（用户在发现页 / 详情页点/取消 点赞、收藏）后，
+  // 把对应 tab 的 loaded 标记重置，下一次 activeTab 命中时自动 refetch。
+  useEffect(() => {
+    setLoadedTab((s) => (s.likes ? { ...s, likes: false } : s));
+  }, [likedIds]);
+
+  useEffect(() => {
+    setLoadedTab((s) => (s.favorites ? { ...s, favorites: false } : s));
+  }, [favoritedIds]);
 
   // 登出后重置所有加载状态，避免再次登录时看到旧数据
   useEffect(() => {
