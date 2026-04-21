@@ -12,8 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Env files with secrets (keep only *.example committed)
+.env
+.env.*
+!.env.*.example
+
 # Wrangler local dev state
 worker/.wrangler/
+worker/.dev.vars
 
 # Editor directories and files
 .vscode/*

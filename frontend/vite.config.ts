@@ -1,10 +1,6 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-
-const AI_API_KEY = 'sk-b37c3688968246ce872649521cce6943'
-const AI_BASE_URL = 'https://api.deepseek.com/v1'
-const AI_MODEL = 'deepseek-chat'
 
 const SYSTEM_PROMPT = `你是一位为 VibePop 平台生成可视化内容的 AI 编辑器。用户会输入主题、文案或图片素材，你需要直接输出一个完整的、可运行的单一 HTML 文件（内联样式，无外部 CSS/JS 依赖）。
 
@@ -35,10 +31,20 @@ const SYSTEM_PROMPT = `你是一位为 VibePop 平台生成可视化内容的 AI
 ## 输出格式
 你的回复必须仅包含可运行的 HTML 代码，以 <!DOCTYPE html> 开头。不要在代码块外添加任何解释文字。`
 
-function aiProxyPlugin(): Plugin {
+interface AiConfig {
+  apiKey: string
+  baseUrl: string
+  model: string
+}
+
+function aiProxyPlugin(config: AiConfig): Plugin {
+  const { apiKey, baseUrl, model } = config
   return {
     name: 'ai-proxy',
     configureServer(server) {
+      if (!apiKey) {
+        console.warn('[AI] AI_API_KEY 未配置，/api/ai/generate 将返回 500。请在 frontend/.env.local 中填写。')
+      }
       server.middlewares.use('/api/ai/generate', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
@@ -72,14 +78,14 @@ function aiProxyPlugin(): Plugin {
             messages.push({ role: 'user', content: prompt })
           }
 
-          const apiRes = await fetch(`${AI_BASE_URL}/chat/completions`, {
+          const apiRes = await fetch(`${baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${AI_API_KEY}`,
+              'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              model: AI_MODEL,
+              model,
               messages,
               max_tokens: 8192,
               temperature: 0.7,
@@ -115,14 +121,23 @@ function aiProxyPlugin(): Plugin {
   }
 }
 
-export default defineConfig({
-  plugins: [aiProxyPlugin(), react(), tailwindcss()],
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8787',
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const aiConfig: AiConfig = {
+    apiKey: env.AI_API_KEY ?? '',
+    baseUrl: env.AI_BASE_URL || 'https://api.deepseek.com/v1',
+    model: env.AI_MODEL || 'deepseek-chat',
+  }
+
+  return {
+    plugins: [aiProxyPlugin(aiConfig), react(), tailwindcss()],
+    server: {
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8787',
+          changeOrigin: true,
+        },
       },
     },
-  },
+  }
 })
