@@ -7,6 +7,7 @@ import ExternalAIPanel from '../components/create/ExternalAIPanel';
 import { api } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { injectAssets, type Asset } from '../utils/assets';
+import { stripCodeFence } from '../utils/stripCodeFence';
 import type { Content, ContentType, PromptTemplateDTO } from '../types';
 import { useTranslation, type TranslationKey } from '../i18n';
 import type { Language } from '../stores/settingsStore';
@@ -82,14 +83,13 @@ export default function CreatePage() {
         userPrompt,
         existingCode,
         (partialCode) => {
-          setGeneratedCode(partialCode);
-          setStatusMsg(t('create.status.generatingWith', { count: partialCode.length }));
+          const clean = stripCodeFence(partialCode);
+          setGeneratedCode(clean);
+          setStatusMsg(t('create.status.generatingWith', { count: clean.length }));
         },
       );
 
-      let code = finalCode.trim();
-      const htmlMatch = code.match(/```html\n?([\s\S]*?)```/);
-      if (htmlMatch) code = htmlMatch[1].trim();
+      const code = stripCodeFence(finalCode);
 
       setAiCode(code);
       setGeneratedCode(code);

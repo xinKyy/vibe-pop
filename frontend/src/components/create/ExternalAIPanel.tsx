@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { buildExternalPrompt } from '../../utils/prompts';
+import { stripCodeFence } from '../../utils/stripCodeFence';
 import { useTranslation } from '../../i18n';
 
 interface ExternalAIPanelProps {
@@ -153,8 +154,7 @@ export default function ExternalAIPanel({ prompt, onPromptChange, onSubmitCode }
  */
 function extractHtml(raw: string): string {
   if (!raw) return '';
-  const fence = raw.match(/```(?:html)?\n?([\s\S]*?)```/i);
-  let code = fence ? fence[1].trim() : raw.trim();
+  const code = stripCodeFence(raw);
   if (/<!DOCTYPE\s+html/i.test(code) || /<html[\s>]/i.test(code)) return code;
   // 片段 - 包一层骨架
   return `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>\n${code}\n</body></html>`;

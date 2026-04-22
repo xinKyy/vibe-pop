@@ -7,7 +7,8 @@ const SYSTEM_PROMPT = `你是VibePop平台的AI内容生成器。根据用户输
 - 用Flexbox/Grid布局，间距用rem/%
 - 字体>=14px，触控区>=44px
 - 动画简洁流畅，视觉精美
-- 只输出HTML代码，以<!DOCTYPE html>开头，不要任何解释文字`;
+- 只输出HTML代码，以<!DOCTYPE html>开头，不要任何解释文字
+- 严禁使用 Markdown 代码围栏（例如 \`\`\`html 或 \`\`\`），直接输出裸 HTML`;
 
 function buildMessages(prompt: string, existingCode: string | null) {
   const messages: { role: string; content: string }[] = [
@@ -193,16 +194,30 @@ export async function generateContent(
     }
 
     const data = await response.json() as { choices: { message: { content: string } }[] };
-    let code = data.choices[0]?.message?.content || '';
-
-    const htmlMatch = code.match(/```html\n?([\s\S]*?)```/);
-    if (htmlMatch) code = htmlMatch[1];
-
-    return code.trim();
+    const raw = data.choices[0]?.message?.content || '';
+    return stripCodeFence(raw);
   } catch (error: any) {
     console.error('[AI] Generation error:', error?.message || error);
     return generateFallbackContent(prompt);
   }
+}
+
+/**
+ * 剥离模型输出里可能带的 Markdown 代码围栏：
+ * - 成对围栏：```html ... ``` / ``` ... ```
+ * - 只有起始没有结束（被 max_tokens 截断）：保留正文
+ * - 完全没有围栏：原样返回
+ */
+function stripCodeFence(raw: string): string {
+  let code = (raw || '').trim();
+  if (!code.startsWith('```')) return code;
+
+  const paired = code.match(/^```(?:[a-zA-Z0-9_-]+)?\s*\n([\s\S]*?)\n```\s*$/);
+  if (paired) return paired[1].trim();
+
+  code = code.replace(/^```(?:[a-zA-Z0-9_-]+)?\s*\n?/, '');
+  code = code.replace(/\n?```\s*$/, '');
+  return code.trim();
 }
 
 function generateFallbackContent(prompt: string): string {
