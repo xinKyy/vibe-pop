@@ -19,11 +19,14 @@ export interface Asset {
 
 export type AssetKind = 'image' | 'audio' | 'video' | 'other';
 
+// 所有类型统一 1MB 上限：资源目前以 data: URL 内嵌进 HTML 并持久化到 KV，
+// 一张图超过 1MB 就会让发布体积/渲染都变重；真要放大文件需要先接 R2/Images。
+const ONE_MB = 1 * 1024 * 1024;
 export const ASSET_LIMITS: Record<AssetKind, { max: number; accept: string[] }> = {
-  image: { max: 5 * 1024 * 1024, accept: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'] },
-  audio: { max: 10 * 1024 * 1024, accept: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3'] },
-  video: { max: 50 * 1024 * 1024, accept: ['video/mp4', 'video/webm'] },
-  other: { max: 1 * 1024 * 1024, accept: ['application/json', 'text/plain', 'text/csv'] },
+  image: { max: ONE_MB, accept: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'] },
+  audio: { max: ONE_MB, accept: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3'] },
+  video: { max: ONE_MB, accept: ['video/mp4', 'video/webm'] },
+  other: { max: ONE_MB, accept: ['application/json', 'text/plain', 'text/csv'] },
 };
 
 export function detectKind(mime: string, name: string): AssetKind {

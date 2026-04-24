@@ -13,11 +13,13 @@ interface FeedItemProps {
   onRemix?: (content: Content) => void;
   /** 底部需要留出的空间，例如 Feed 底部手势切换区 */
   bottomInset?: number;
-  /** 是否响应 iframe 内部交互（拖动切换时置为 false 以避免误触） */
+  /** 是否响应 iframe 内部交互（拖动切换或外层滚动时置为 false 以避免误触/滚动劫持） */
   interactive?: boolean;
+  /** 点击全屏按钮时回调；不传则不显示全屏按钮 */
+  onFullscreen?: (content: Content) => void;
 }
 
-export default function FeedItem({ content, onRemix, bottomInset = 0, interactive = true }: FeedItemProps) {
+export default function FeedItem({ content, onRemix, bottomInset = 0, interactive = true, onFullscreen }: FeedItemProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { isLiked, isFavorited, isFollowing, toggleLike, toggleFavorite, toggleFollow } = useSocialStore();
@@ -101,6 +103,40 @@ export default function FeedItem({ content, onRemix, bottomInset = 0, interactiv
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#E8EA1A"/>
               </svg>
             </div>
+          )}
+
+          {/* 全屏按钮：iframe 右上角悬浮，点击进入全屏交互模式 */}
+          {hasCode && onFullscreen && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onFullscreen(content);
+              }}
+              aria-label={t('immersive.fullscreen')}
+              style={{
+                position: 'absolute',
+                top: 48,
+                right: 12,
+                zIndex: 20,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#fff',
+                background: 'rgba(20,20,24,0.55)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 9999,
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
+              }}
+            >
+              <FullscreenIcon />
+              {t('immersive.fullscreen')}
+            </button>
           )}
         </div>
 
@@ -304,6 +340,18 @@ function ChatBubbleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
+  );
+}
+
+/** 全屏图标（Feather maximize-2 风格） */
+function FullscreenIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="15 3 21 3 21 9" />
+      <polyline points="9 21 3 21 3 15" />
+      <line x1="21" y1="3" x2="14" y2="10" />
+      <line x1="3" y1="21" x2="10" y2="14" />
     </svg>
   );
 }

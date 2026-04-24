@@ -46,6 +46,8 @@ export const translations = {
     // Immersive
     'immersive.empty.title': '暂无内容',
     'immersive.swipeHint': '↑↓ 滑动切换内容',
+    'immersive.fullscreen': '全屏',
+    'immersive.exitFullscreen': '退出全屏',
 
     // ContentDetail (单帖分享落地页)
     'detail.notFound.title': '内容不存在',
@@ -203,7 +205,7 @@ export const translations = {
 
     // AssetManager
     'assets.dropzone': '拖拽文件到此处或点击上传',
-    'assets.dropzone.limit': '图片 ≤5MB · 音频 ≤10MB · 视频 ≤50MB · 其他 ≤1MB',
+    'assets.dropzone.limit': '所有类型 ≤1MB',
     'assets.empty': '暂无资源 · 上传后在代码中使用 ./assets/文件名 引用',
     'assets.count': '共 {count} 项 · {size}',
     'assets.copyPath': '复制路径',
@@ -300,6 +302,8 @@ export const translations = {
     // Immersive
     'immersive.empty.title': 'No content yet',
     'immersive.swipeHint': '↑↓ Swipe to switch',
+    'immersive.fullscreen': 'Fullscreen',
+    'immersive.exitFullscreen': 'Exit fullscreen',
 
     // ContentDetail (shared post landing page)
     'detail.notFound.title': 'Content not found',
@@ -457,7 +461,7 @@ export const translations = {
 
     // AssetManager
     'assets.dropzone': 'Drop files here or click to upload',
-    'assets.dropzone.limit': 'Images ≤5MB · Audio ≤10MB · Video ≤50MB · Other ≤1MB',
+    'assets.dropzone.limit': 'All files ≤1MB',
     'assets.empty': 'No assets · after uploading, reference them in code as ./assets/filename',
     'assets.count': '{count} items · {size}',
     'assets.copyPath': 'Copy path',

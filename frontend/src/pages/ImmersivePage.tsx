@@ -1,13 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import FeedItem from '../components/content/FeedItem';
 import { api } from '../api/client';
 import type { Content } from '../types';
 import { useTranslation } from '../i18n';
-
-const SWITCH_AREA_HEIGHT = 80;
-const SWITCH_DISTANCE_RATIO = 0.18;
-const SWITCH_VELOCITY_THRESHOLD = 0.5;
 
 export default function ImmersivePage() {
   const navigate = useNavigate();
@@ -17,18 +14,11 @@ export default function ImmersivePage() {
   const [contents, setContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [dragY, setDragY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [containerHeight, setContainerHeight] = useState(() =>
-    typeof window !== 'undefined' ? window.innerHeight : 800,
-  );
+  const [fullscreenContent, setFullscreenContent] = useState<Content | null>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const startYRef = useRef(0);
-  const startTimeRef = useRef(0);
-  const draggingRef = useRef(false);
-  const pointerIdRef = useRef<number | null>(null);
-  const initialIndexSetRef = useRef(false);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const initialScrollDoneRef = useRef(false);
 
   const fetchFeed = useCallback(async () => {
     try {
@@ -45,78 +35,73 @@ export default function ImmersivePage() {
     fetchFeed();
   }, [fetchFeed]);
 
+  // 首次进入时，如带 contentId 则滚动到目标卡片
   useEffect(() => {
-    if (initialIndexSetRef.current || !targetContentId || contents.length === 0) return;
+    if (initialScrollDoneRef.current || !targetContentId || contents.length === 0) return;
     const index = contents.findIndex((c) => c.id === targetContentId);
-    if (index > 0) setCurrentIndex(index);
-    initialIndexSetRef.current = true;
+    if (index > 0) {
+      setCurrentIndex(index);
+      // 等 DOM 布局完成再瞬时滚动到目标位置（不要用 smooth，避免抢占 scroll-snap）
+      requestAnimationFrame(() => {
+        const el = itemRefs.current[index];
+        el?.scrollIntoView({ block: 'start' });
+      });
+    }
+    initialScrollDoneRef.current = true;
   }, [contents, targetContentId]);
 
   const handleRemix = useCallback((content: Content) => {
     navigate('/create', { state: { remix: content } });
   }, [navigate]);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const update = () => setContainerHeight(el.clientHeight);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
+  const handleFullscreen = useCallback((content: Content) => {
+    setFullscreenContent(content);
   }, []);
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (contents.length === 0) return;
-    pointerIdRef.current = e.pointerId;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    draggingRef.current = true;
-    startYRef.current = e.clientY;
-    startTimeRef.current = Date.now();
-    setIsDragging(true);
-  };
+  const handleExitFullscreen = useCallback(() => {
+    setFullscreenContent(null);
+  }, []);
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!draggingRef.current || pointerIdRef.current !== e.pointerId) return;
-    let dy = e.clientY - startYRef.current;
-    // 边界阻尼：第一个向下拖 / 最后一个向上拖 时阻尼为 0.3
-    if ((currentIndex === 0 && dy > 0) || (currentIndex === contents.length - 1 && dy < 0)) {
-      dy = dy * 0.3;
-    }
-    setDragY(dy);
-  };
+  // 监听滚动，更新当前索引（用于可能的分页/页码展示）
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const h = el.clientHeight;
+        if (h <= 0) return;
+        const idx = Math.round(el.scrollTop / h);
+        setCurrentIndex((prev) => (prev === idx ? prev : idx));
+      });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [contents.length]);
 
-  const finishDrag = useCallback(() => {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    const h = containerHeight;
-    const dt = Math.max(Date.now() - startTimeRef.current, 1);
-    const velocity = dragY / dt; // px/ms, 负值向上
-    let next = currentIndex;
-    if (dragY < -h * SWITCH_DISTANCE_RATIO || velocity < -SWITCH_VELOCITY_THRESHOLD) {
-      next = Math.min(currentIndex + 1, contents.length - 1);
-    } else if (dragY > h * SWITCH_DISTANCE_RATIO || velocity > SWITCH_VELOCITY_THRESHOLD) {
-      next = Math.max(currentIndex - 1, 0);
-    }
-    setCurrentIndex(next);
-    setDragY(0);
-    setIsDragging(false);
-    pointerIdRef.current = null;
-  }, [dragY, currentIndex, contents.length, containerHeight]);
-
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (pointerIdRef.current === e.pointerId) {
-      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
-      finishDrag();
-    }
-  };
-
-  const translateY = -currentIndex * containerHeight + dragY;
+  // 全屏模式：ESC 退出 + 锁定外层滚动
+  useEffect(() => {
+    if (!fullscreenContent) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreenContent(null);
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [fullscreenContent]);
 
   return (
     <div className="h-dvh w-full flex items-center justify-center bg-[#050507]">
       <div
-        ref={containerRef}
         className="relative w-full max-w-[430px] h-full min-[431px]:h-[calc(100dvh-40px)] min-[431px]:max-h-[932px] bg-bg overflow-hidden min-[431px]:rounded-2xl min-[431px]:border min-[431px]:border-border/50"
       >
         {/* Back button */}
@@ -139,6 +124,23 @@ export default function ImmersivePage() {
           {t('common.back')}
         </button>
 
+        {/* 页码指示（右上角） */}
+        {!loading && contents.length > 0 && (
+          <div
+            className="absolute top-0 right-0 z-50 select-none pointer-events-none"
+            style={{
+              padding: '14px 16px',
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'rgba(255,255,255,0.7)',
+              fontVariantNumeric: 'tabular-nums',
+              textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+            }}
+          >
+            {currentIndex + 1} / {contents.length}
+          </div>
+        )}
+
         {loading ? (
           <div className="h-full flex flex-col items-center justify-center text-dim">
             <div className="text-3xl mb-4 opacity-40">···</div>
@@ -150,60 +152,98 @@ export default function ImmersivePage() {
             <div className="text-[15px] font-semibold mb-2">{t('immersive.empty.title')}</div>
           </div>
         ) : (
-          <>
-            {/* 垂直滑动容器：transform 驱动 */}
-            <div
-              className="absolute inset-0"
-              style={{
-                transform: `translate3d(0, ${translateY}px, 0)`,
-                transition: isDragging ? 'none' : 'transform 300ms cubic-bezier(0.22, 1, 0.36, 1)',
-                willChange: 'transform',
-              }}
-            >
-              {contents.map((content, idx) => (
-                <div
-                  key={content.id}
-                  className="absolute left-0 right-0"
-                  style={{
-                    top: idx * containerHeight,
-                    height: containerHeight,
-                  }}
-                >
-                  <FeedItem
-                    content={content}
-                    onRemix={handleRemix}
-                    bottomInset={SWITCH_AREA_HEIGHT}
-                    interactive={!isDragging}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* 底部切换手势区 - 半透明遮罩 + 文字提示 */}
-            <div
-              className="absolute left-0 right-0 bottom-0 z-30 select-none"
-              style={{
-                height: SWITCH_AREA_HEIGHT,
-                background: 'rgba(0,0,0,0.6)',
-                backdropFilter: 'blur(6px)',
-                touchAction: 'none',
-                cursor: isDragging ? 'grabbing' : 'grab',
-              }}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
-            >
-              <div className="flex items-center justify-center h-full gap-2 pointer-events-none">
-                <span className="text-white/80 text-[14px] font-semibold tracking-wide">{t('immersive.swipeHint')}</span>
-                <span className="text-white/40 text-[12px] font-medium tabular-nums">
-                  {currentIndex + 1} / {contents.length}
-                </span>
+          <div
+            ref={scrollerRef}
+            className="h-full w-full overflow-y-auto overscroll-contain"
+            style={{
+              scrollSnapType: 'y mandatory',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {contents.map((content, idx) => (
+              <div
+                key={content.id}
+                ref={(el) => { itemRefs.current[idx] = el; }}
+                className="h-full w-full"
+                style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
+              >
+                <FeedItem
+                  content={content}
+                  onRemix={handleRemix}
+                  onFullscreen={handleFullscreen}
+                  interactive={false}
+                />
               </div>
-            </div>
-          </>
+            ))}
+          </div>
         )}
       </div>
+
+      {fullscreenContent && createPortal(
+        <FullscreenView
+          content={fullscreenContent}
+          onExit={handleExitFullscreen}
+          exitLabel={t('immersive.exitFullscreen')}
+        />,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+function FullscreenView({
+  content,
+  onExit,
+  exitLabel,
+}: {
+  content: Content;
+  onExit: () => void;
+  exitLabel: string;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[9999] bg-black animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+    >
+      <iframe
+        srcDoc={content.code}
+        sandbox="allow-scripts"
+        className="w-full h-full border-0"
+        title={content.title}
+      />
+      <button
+        onClick={onExit}
+        aria-label={exitLabel}
+        style={{
+          position: 'fixed',
+          top: 'max(16px, env(safe-area-inset-top))',
+          right: 'max(16px, env(safe-area-inset-right))',
+          zIndex: 10000,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '10px 14px',
+          fontSize: 13,
+          fontWeight: 600,
+          color: '#fff',
+          background: 'rgba(20,20,24,0.65)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: 9999,
+          cursor: 'pointer',
+          boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <polyline points="4 14 10 14 10 20" />
+          <polyline points="20 10 14 10 14 4" />
+          <line x1="14" y1="10" x2="21" y2="3" />
+          <line x1="3" y1="21" x2="10" y2="14" />
+        </svg>
+        {exitLabel}
+      </button>
     </div>
   );
 }
