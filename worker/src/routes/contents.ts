@@ -17,6 +17,29 @@ async function enrichContent(content: Content, kv: KVNamespace): Promise<Content
   };
 }
 
+/**
+ * 把 pinned 的内容上浮到列表最前。多个置顶按 pinnedAt 倒序（新的置顶更靠前）。
+ * 非置顶项保持入参原有顺序。
+ */
+function hoistPinned<T extends { pinned?: boolean; pinnedAt?: string }>(items: T[]): T[] {
+  const pinned = items
+    .filter((x) => x.pinned)
+    .sort((a, b) => new Date(b.pinnedAt || 0).getTime() - new Date(a.pinnedAt || 0).getTime());
+  const rest = items.filter((x) => !x.pinned);
+  return [...pinned, ...rest];
+}
+
+/** 读取一组 id 的 Content 条目（并发，略过缺失项） */
+async function loadContents(kv: KVNamespace, ids: string[]): Promise<Content[]> {
+  const results = await Promise.all(
+    ids.map(async (id) => {
+      const data = await kv.get(`contents:${id}`);
+      return data ? (JSON.parse(data) as Content) : null;
+    }),
+  );
+  return results.filter((x): x is Content => x !== null);
+}
+
 contents.get('/', optionalAuth(), async (c) => {
   const page = parseInt(c.req.query('page') || '1');
   const limit = parseInt(c.req.query('limit') || '20');
@@ -32,50 +55,31 @@ contents.get('/', optionalAuth(), async (c) => {
     filteredIds = catJson ? JSON.parse(catJson) : [];
   }
 
-  // 需要排序时先把候选集全部读出来（小数据量内存排序）
-  if (sort === 'hot' || sort === 'latest') {
-    const all: Content[] = [];
-    for (const id of filteredIds) {
-      const data = await c.env.KV.get(`contents:${id}`);
-      if (data) all.push(JSON.parse(data));
-    }
+  // 全量读取内容（小数据量），便于排序 + 置顶上浮
+  const all = await loadContents(c.env.KV, filteredIds);
 
-    if (sort === 'hot') {
-      // 简单热度：点赞 + 收藏×2 + 播放×0.1 + 评论×1
-      const score = (x: Content) =>
-        (x.likeCount ?? 0) + (x.favoriteCount ?? 0) * 2 + (x.playCount ?? 0) * 0.1 + (x.commentCount ?? 0);
-      all.sort((a, b) => score(b) - score(a));
-    } else {
-      // latest：publishedAt 优先，缺失回退 createdAt
-      const ts = (x: Content) => new Date(x.publishedAt || x.createdAt || 0).getTime();
-      all.sort((a, b) => ts(b) - ts(a));
-    }
-
-    const total = all.length;
-    const start = (page - 1) * limit;
-    const pageItems = all.slice(start, start + limit);
-    const items = [];
-    for (const content of pageItems) {
-      items.push(await enrichContent(content, c.env.KV));
-    }
-    return c.json({
-      success: true,
-      data: { items, total, page, limit, hasMore: start + limit < total },
-    });
+  if (sort === 'hot') {
+    // 简单热度：点赞 + 收藏×2 + 播放×0.1 + 评论×1
+    const score = (x: Content) =>
+      (x.likeCount ?? 0) + (x.favoriteCount ?? 0) * 2 + (x.playCount ?? 0) * 0.1 + (x.commentCount ?? 0);
+    all.sort((a, b) => score(b) - score(a));
+  } else if (sort === 'latest') {
+    // publishedAt 优先，缺失回退 createdAt
+    const ts = (x: Content) => new Date(x.publishedAt || x.createdAt || 0).getTime();
+    all.sort((a, b) => ts(b) - ts(a));
   }
+  // 未指定 sort：保持 filteredIds（= KV list）既有顺序
 
+  const hoisted = hoistPinned(all);
+
+  const total = hoisted.length;
   const start = (page - 1) * limit;
-  const pageIds = filteredIds.slice(start, start + limit);
-
-  const items = [];
-  for (const id of pageIds) {
-    const data = await c.env.KV.get(`contents:${id}`);
-    if (data) items.push(await enrichContent(JSON.parse(data), c.env.KV));
-  }
+  const pageItems = hoisted.slice(start, start + limit);
+  const items = await Promise.all(pageItems.map((x) => enrichContent(x, c.env.KV)));
 
   return c.json({
     success: true,
-    data: { items, total: filteredIds.length, page, limit, hasMore: start + limit < filteredIds.length },
+    data: { items, total, page, limit, hasMore: start + limit < total },
   });
 });
 
@@ -86,18 +90,17 @@ contents.get('/feed', optionalAuth(), async (c) => {
   const listJson = await c.env.KV.get('contents:list');
   const allIds: string[] = listJson ? JSON.parse(listJson) : [];
 
-  const start = (page - 1) * limit;
-  const pageIds = allIds.slice(start, start + limit);
+  const all = await loadContents(c.env.KV, allIds);
+  const hoisted = hoistPinned(all);
 
-  const items = [];
-  for (const id of pageIds) {
-    const data = await c.env.KV.get(`contents:${id}`);
-    if (data) items.push(await enrichContent(JSON.parse(data), c.env.KV));
-  }
+  const total = hoisted.length;
+  const start = (page - 1) * limit;
+  const pageItems = hoisted.slice(start, start + limit);
+  const items = await Promise.all(pageItems.map((x) => enrichContent(x, c.env.KV)));
 
   return c.json({
     success: true,
-    data: { items, total: allIds.length, page, limit, hasMore: start + limit < allIds.length },
+    data: { items, total, page, limit, hasMore: start + limit < total },
   });
 });
 

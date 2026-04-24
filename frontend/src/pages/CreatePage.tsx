@@ -6,7 +6,12 @@ import PreviewWorkspace from '../components/create/PreviewWorkspace';
 import ExternalAIPanel from '../components/create/ExternalAIPanel';
 import { api } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
-import { injectAssets, type Asset } from '../utils/assets';
+import {
+  findForeignBlobUrls,
+  injectAssets,
+  remapBlobUrlsToAssetPaths,
+  type Asset,
+} from '../utils/assets';
 import { stripCodeFence } from '../utils/stripCodeFence';
 import type { Content, ContentType, PromptTemplateDTO } from '../types';
 import { useTranslation, type TranslationKey } from '../i18n';
@@ -31,6 +36,7 @@ export default function CreatePage() {
   const { isLoggedIn } = useAuthStore();
   const { t, language } = useTranslation();
   const remixContent = (location.state as { remix?: Content })?.remix;
+  const editContent = (location.state as { edit?: Content })?.edit;
 
   const [prompt, setPrompt] = useState(
     remixContent
@@ -40,18 +46,19 @@ export default function CreatePage() {
         }) + ' '
       : '',
   );
-  // Remix 直接进入预览编辑器：把原作品代码作为"基线代码"填入
-  const [stage, setStage] = useState<Stage>(remixContent ? 'preview' : 'input');
+  // Remix / Edit 直接进入预览编辑器：把原作品代码作为"基线代码"填入
+  const [stage, setStage] = useState<Stage>(remixContent || editContent ? 'preview' : 'input');
   const [createMode, setCreateMode] = useState<CreateMode>('builtin');
   /** 原始 AI（或外部粘贴 / Remix 源）代码，用于「重置」 */
-  const [aiCode, setAiCode] = useState(remixContent?.code || '');
+  const [aiCode, setAiCode] = useState(remixContent?.code || editContent?.code || '');
   /** 当前用于预览的代码（可能已被手动编辑后应用） */
-  const [generatedCode, setGeneratedCode] = useState(remixContent?.code || '');
+  const [generatedCode, setGeneratedCode] = useState(remixContent?.code || editContent?.code || '');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [generatedMeta] = useState<{ title?: string; description?: string; type?: string; coverEmoji?: string; coverGradient?: string }>({});
   const [chatInput, setChatInput] = useState('');
   const [chatPanelOpen, setChatPanelOpen] = useState(true);
   const [statusMsg, setStatusMsg] = useState('');
+  const [warning, setWarning] = useState('');
   const [templates, setTemplates] = useState<PromptTemplateDTO[]>([]);
 
   const [publishTitle, setPublishTitle] = useState('');
@@ -77,7 +84,9 @@ export default function CreatePage() {
     }
     setStage('generating');
     setStatusMsg(t('create.status.generating'));
+    setWarning('');
     setGeneratedCode('');
+    const assetBriefs = assets.map((a) => ({ name: a.name, kind: a.kind, mime: a.mime }));
     try {
       const finalCode = await api.ai.generateStream(
         userPrompt,
@@ -87,9 +96,20 @@ export default function CreatePage() {
           setGeneratedCode(clean);
           setStatusMsg(t('create.status.generatingWith', { count: clean.length }));
         },
+        assetBriefs,
       );
 
-      const code = stripCodeFence(finalCode);
+      // 兜底 1：AI 若硬编码了当前会话的 blob URL，还原为 ./assets/xxx，
+      //         这样代码持久化到数据库后下次打开依然能用。
+      const code = remapBlobUrlsToAssetPaths(stripCodeFence(finalCode), assets);
+
+      // 兜底 2：残留的 blob: URL（不在资源清单里、或已过期的）给用户明确提示，
+      //         否则 sandbox iframe 里一定白屏。
+      const foreign = findForeignBlobUrls(code, assets);
+      if (foreign.length > 0) {
+        setWarning(t('create.warning.hardcodedBlob'));
+        console.warn('[Create] AI returned hardcoded blob URL(s):', foreign);
+      }
 
       setAiCode(code);
       setGeneratedCode(code);
@@ -99,7 +119,7 @@ export default function CreatePage() {
       setStatusMsg(t('create.status.generateFailed') + (e.message || t('create.unknownError')));
       setTimeout(() => setStage('input'), 2000);
     }
-  }, [isLoggedIn, navigate, t]);
+  }, [isLoggedIn, navigate, t, assets]);
 
   const handleSend = () => {
     if (!prompt.trim()) return;
@@ -129,12 +149,15 @@ export default function CreatePage() {
   };
 
   const goToPublish = () => {
-    const defaultTitle = remixContent
-      ? `${remixContent.title} ${t('create.remix.titleSuffix')}`
-      : generatedMeta.title || prompt.slice(0, 30) || t('create.defaultTitle');
+    const defaultTitle = editContent
+      ? editContent.title
+      : remixContent
+        ? `${remixContent.title} ${t('create.remix.titleSuffix')}`
+        : generatedMeta.title || prompt.slice(0, 30) || t('create.defaultTitle');
     setPublishTitle(defaultTitle);
     setPublishDesc(
-      generatedMeta.description ||
+      editContent?.description ||
+        generatedMeta.description ||
         (remixContent
           ? t('create.remix.descTemplate', {
               title: remixContent.title,
@@ -142,23 +165,39 @@ export default function CreatePage() {
             })
           : ''),
     );
-    setPublishType((generatedMeta.type as ContentType) || (remixContent?.type as ContentType) || 'game');
+    setPublishType(
+      (editContent?.type as ContentType) ||
+        (generatedMeta.type as ContentType) ||
+        (remixContent?.type as ContentType) ||
+        'game',
+    );
     setStage('publish');
   };
 
   const handlePublish = async () => {
     if (!publishTitle.trim()) return;
     setStage('generating');
-    setStatusMsg(t('create.publish.publishing'));
+    setStatusMsg(editContent ? t('create.publish.saving') : t('create.publish.publishing'));
     try {
-      await api.contents.create({
-        title: publishTitle,
-        description: publishDesc,
-        type: publishType,
-        code: injectAssets(generatedCode, assets),
-        auto_publish: true,
-      });
-      setStatusMsg(t('create.publish.success'));
+      if (editContent) {
+        const res = await api.contents.update(editContent.id, {
+          title: publishTitle,
+          description: publishDesc,
+          type: publishType,
+          code: injectAssets(generatedCode, assets),
+        });
+        if (!res.success) throw new Error(res.error || 'Update failed');
+        setStatusMsg(t('create.publish.saved'));
+      } else {
+        await api.contents.create({
+          title: publishTitle,
+          description: publishDesc,
+          type: publishType,
+          code: injectAssets(generatedCode, assets),
+          auto_publish: true,
+        });
+        setStatusMsg(t('create.publish.success'));
+      }
       setTimeout(() => navigate('/profile'), 1000);
     } catch (e: any) {
       setStatusMsg(t('create.publish.failed') + (e.message || t('create.unknownError')));
@@ -198,8 +237,8 @@ export default function CreatePage() {
         <div className="flex items-center justify-between border-b border-border/50" style={{ padding: '12px 20px' }}>
           <button
             onClick={() => {
-              // Remix 场景没有"input"可回退，直接退出到上一页
-              if (remixContent) navigate(-1);
+              // Remix / Edit 场景没有"input"可回退，直接退出到上一页
+              if (remixContent || editContent) navigate(-1);
               else setStage('input');
             }}
             className="rounded-[var(--radius-sm)] bg-muted flex items-center justify-center text-muted-fg hover:bg-border hover:text-fg transition-all duration-200"
@@ -207,9 +246,15 @@ export default function CreatePage() {
           >
             ←
           </button>
-          <span className="text-[14px] font-semibold">{remixContent ? t('create.workspace.remixTitle') : t('create.workspace.title')}</span>
+          <span className="text-[14px] font-semibold">
+            {editContent
+              ? t('create.workspace.editTitle')
+              : remixContent
+                ? t('create.workspace.remixTitle')
+                : t('create.workspace.title')}
+          </span>
           <button onClick={goToPublish} className="bg-accent text-accent-fg text-[13px] font-semibold rounded-[var(--radius-sm)] active:scale-95 transition-all" style={{ padding: '8px 20px' }}>
-            {t('create.workspace.publish')}
+            {editContent ? t('create.workspace.save') : t('create.workspace.publish')}
           </button>
         </div>
 
@@ -225,6 +270,25 @@ export default function CreatePage() {
                 username: remixContent.author?.username || 'anon',
               })}
             </span>
+          </div>
+        )}
+
+        {warning && (
+          <div
+            className="flex items-start gap-2 border-b border-border/30"
+            style={{ padding: '8px 16px', background: 'rgba(239,68,68,0.08)' }}
+            role="alert"
+          >
+            <span className="text-[12px] font-semibold text-red-400 flex-shrink-0">!</span>
+            <span className="text-[12px] text-red-400/90 leading-snug flex-1">{warning}</span>
+            <button
+              type="button"
+              onClick={() => setWarning('')}
+              aria-label="dismiss"
+              className="text-[12px] text-red-400/70 hover:text-red-400 flex-shrink-0"
+            >
+              ×
+            </button>
           </div>
         )}
 
@@ -290,7 +354,7 @@ export default function CreatePage() {
           <button onClick={() => setStage('preview')} className="rounded-[var(--radius-sm)] bg-muted flex items-center justify-center text-muted-fg hover:bg-border hover:text-fg transition-all duration-200" style={{ width: 40, height: 40 }}>
             ←
           </button>
-          <span className="flex-1 text-center text-[14px] font-semibold">{t('create.publish.header')}</span>
+          <span className="flex-1 text-center text-[14px] font-semibold">{editContent ? t('create.publish.headerEdit') : t('create.publish.header')}</span>
           <div style={{ width: 40 }} />
         </div>
         <div style={{ padding: 24 }}>
@@ -328,7 +392,7 @@ export default function CreatePage() {
           <button onClick={handlePublish} disabled={!publishTitle.trim()}
             className="w-full bg-accent text-accent-fg text-[15px] font-semibold rounded-[var(--radius-md)] disabled:opacity-30 active:scale-[0.98] hover:brightness-110 transition-all duration-200"
             style={{ padding: '14px 0' }}>
-            {t('create.publish.submit')}
+            {editContent ? t('create.publish.submitEdit') : t('create.publish.submit')}
           </button>
         </div>
       </div>

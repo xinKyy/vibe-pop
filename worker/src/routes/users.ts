@@ -27,13 +27,22 @@ users.put('/me', authMiddleware, async (c) => {
   const updates: Partial<User> = {};
   if (typeof body.displayName === 'string') {
     const name = body.displayName.trim();
-    if (name.length < 1 || name.length > 20) {
+    // 禁止把字面量 "undefined" / "null" 作为显示名保存，这是前端历史脏数据来源。
+    if (name.length < 1 || name.length > 20 || name === 'undefined' || name === 'null') {
       return c.json({ success: false, error: '显示名长度需在 1~20 之间' }, 400);
     }
     updates.displayName = name;
   }
-  if (typeof body.avatar === 'string') updates.avatar = body.avatar.slice(0, 8);
-  if (typeof body.bio === 'string') updates.bio = body.bio.slice(0, 140);
+  if (typeof body.avatar === 'string') {
+    const av = body.avatar.trim();
+    if (av && av !== 'undefined' && av !== 'null') {
+      updates.avatar = av.slice(0, 8);
+    }
+  }
+  if (typeof body.bio === 'string') {
+    const bioText = body.bio === 'undefined' || body.bio === 'null' ? '' : body.bio;
+    updates.bio = bioText.slice(0, 140);
+  }
 
   const updated: User = { ...user, ...updates };
   await c.env.KV.put(`users:${userId}`, JSON.stringify(updated));

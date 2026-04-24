@@ -59,3 +59,39 @@ export function injectAssets(html: string, assets: Asset[]): string {
   }
   return out;
 }
+
+/**
+ * 反向修复：AI 有时会把当前页面的 blob URL 直接硬编码进代码。
+ * 这些 URL 在 sandbox=allow-scripts 的 iframe 里是跨 origin 不可访问的，
+ * 且页面刷新后立即失效。把能匹配到当前 asset 的 blob URL 还原成 ./assets/xxx，
+ * 后续走 injectAssets 正常通路。
+ */
+export function remapBlobUrlsToAssetPaths(html: string, assets: Asset[]): string {
+  if (!html || !assets.length) return html;
+  let out = html;
+  for (const a of assets) {
+    if (!a.blobUrl) continue;
+    out = out.split(a.blobUrl).join(assetPath(a.name));
+  }
+  return out;
+}
+
+/**
+ * 检测代码里是否还残留任何无法复用的 blob: URL（即不在当前 assets 里的）。
+ * 返回前 3 个样本（截断显示用）。
+ */
+export function findForeignBlobUrls(html: string, assets: Asset[]): string[] {
+  if (!html) return [];
+  const known = new Set(assets.map((a) => a.blobUrl).filter(Boolean));
+  const matches = html.match(/blob:[^"'\s<>`)]+/gi) || [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const m of matches) {
+    if (known.has(m)) continue;
+    if (seen.has(m)) continue;
+    seen.add(m);
+    result.push(m);
+    if (result.length >= 3) break;
+  }
+  return result;
+}

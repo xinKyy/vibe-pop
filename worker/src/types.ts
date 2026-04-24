@@ -55,6 +55,9 @@ export interface Content {
   remixFromId?: string;
   createdAt: string;
   publishedAt?: string;
+  /** 置顶标记：为 true 时在列表 / Feed / 分类中永远排在最前（多个置顶按 pinnedAt 倒序） */
+  pinned?: boolean;
+  pinnedAt?: string;
 }
 
 export interface Comment {

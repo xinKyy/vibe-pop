@@ -1,6 +1,13 @@
 import { useAuthStore } from '../stores/authStore';
 import type { PromptTemplateDTO } from '../types';
 
+/** 精简版资源信息，传给 AI 作为可引用资源清单（不包含 blobUrl） */
+export interface AssetBriefDTO {
+  name: string;
+  kind: 'image' | 'audio' | 'video' | 'other';
+  mime?: string;
+}
+
 const BASE_URL = import.meta.env.PROD
   ? 'https://vibepop-api.zyhh1611054604.workers.dev/api'
   : '/api';
@@ -128,8 +135,10 @@ export const api = {
       request<{ success: boolean; data: any }>('/contents', { method: 'POST', body: JSON.stringify(body) }),
     publish: (id: string, body: { title?: string; description?: string; type?: string }) =>
       request<{ success: boolean; data: any }>(`/contents/${id}/publish`, { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: { title?: string; description?: string; type?: string; code?: string }) =>
+      request<{ success: boolean; data: any; error?: string }>(`/contents/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id: string) =>
-      request<{ success: boolean }>(`/contents/${id}`, { method: 'DELETE' }),
+      request<{ success: boolean; error?: string }>(`/contents/${id}`, { method: 'DELETE' }),
   },
 
   users: {
@@ -171,23 +180,25 @@ export const api = {
       prompt: string,
       existingCode: string | undefined,
       onChunk: (text: string) => void,
+      assets?: AssetBriefDTO[],
     ): Promise<string> => {
-      return streamRequest('/ai/generate', { prompt, existingCode }, onChunk);
+      return streamRequest('/ai/generate', { prompt, existingCode, assets }, onChunk);
     },
     remixStream: (
       contentId: string,
       prompt: string,
       onChunk: (text: string) => void,
+      assets?: AssetBriefDTO[],
     ): Promise<string> => {
-      return streamRequest('/ai/remix', { contentId, prompt }, onChunk);
+      return streamRequest('/ai/remix', { contentId, prompt, assets }, onChunk);
     },
-    generate: (prompt: string, existingCode?: string) =>
+    generate: (prompt: string, existingCode?: string, assets?: AssetBriefDTO[]) =>
       request<{ success: boolean; data: { code: string; title?: string; description?: string; type?: string; coverEmoji?: string; coverGradient?: string } }>(
-        '/ai/generate', { method: 'POST', body: JSON.stringify({ prompt, existingCode }), timeout: 90000 }
+        '/ai/generate', { method: 'POST', body: JSON.stringify({ prompt, existingCode, assets }), timeout: 90000 }
       ),
-    remix: (contentId: string, prompt: string) =>
+    remix: (contentId: string, prompt: string, assets?: AssetBriefDTO[]) =>
       request<{ success: boolean; data: { code: string; remixFromId: string } }>(
-        '/ai/remix', { method: 'POST', body: JSON.stringify({ contentId, prompt }), timeout: 90000 }
+        '/ai/remix', { method: 'POST', body: JSON.stringify({ contentId, prompt, assets }), timeout: 90000 }
       ),
   },
 

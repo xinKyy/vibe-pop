@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n';
 
@@ -21,8 +22,13 @@ export default function FollowListModal({ title, items, isOpen, onClose }: Follo
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[2000] flex items-end justify-center" onClick={onClose}>
+  const modal = (
+    <div
+      className="fixed inset-0 z-[2000] flex items-end justify-center"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className="relative w-full max-w-[430px] max-h-[70vh] bg-bg flex flex-col animate-slide-up rounded-t-[var(--radius-xl)]"
@@ -72,4 +78,6 @@ export default function FollowListModal({ title, items, isOpen, onClose }: Follo
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

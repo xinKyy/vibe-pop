@@ -8,6 +8,7 @@ import UserPage from './pages/UserPage';
 import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
 import ImmersivePage from './pages/ImmersivePage';
+import ContentDetailPage from './pages/ContentDetailPage';
 import { useAuthStore } from './stores/authStore';
 import { useSocialStore } from './stores/socialStore';
 
@@ -57,6 +58,14 @@ export default function App() {
           element={
             <OnboardingGuard>
               <ImmersivePage />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/c/:contentId"
+          element={
+            <OnboardingGuard>
+              <ContentDetailPage />
             </OnboardingGuard>
           }
         />

@@ -39,6 +39,8 @@ export default function ProfilePage() {
   });
   const [showEdit, setShowEdit] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Content | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState('');
 
   const userId = user?.id;
@@ -147,6 +149,31 @@ export default function ProfilePage() {
     showToast(t('settings.logout.toast'));
   };
 
+  const handleEditContent = useCallback(
+    (content: Content) => {
+      // 带着原作品进入创作页，发布时走 PUT 原地更新（参见 CreatePage editContent 分支）
+      navigate('/create', { state: { edit: content } });
+    },
+    [navigate],
+  );
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await api.contents.delete(deleteTarget.id);
+      if (!res.success) throw new Error(res.error || 'Delete failed');
+      setMyContents((list) => list.filter((c) => c.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      showToast(t('profile.delete.toast'));
+    } catch (e: any) {
+      console.error('Delete content failed:', e);
+      showToast(t('profile.delete.failed'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="h-full flex flex-col bg-bg">
@@ -209,9 +236,16 @@ export default function ProfilePage() {
 
         {/* Edit profile */}
         <button
-          onClick={() => setShowEdit(true)}
-          className="w-full rounded-[var(--radius-sm)] bg-muted text-[14px] font-semibold text-muted-fg hover:bg-border hover:text-fg transition-all duration-200"
-          style={{ padding: '10px 0' }}
+          type="button"
+          onClick={(e) => {
+            // 防御移动端 ghost click / 父容器 pointer handler 吞事件，并在本地静默失败时兜底
+            e.preventDefault();
+            e.stopPropagation();
+            setShowEdit(true);
+          }}
+          disabled={!user}
+          className="w-full rounded-[var(--radius-sm)] bg-muted text-[14px] font-semibold text-muted-fg hover:bg-border hover:text-fg active:scale-[0.99] transition-all duration-200 disabled:opacity-40"
+          style={{ padding: '10px 0', touchAction: 'manipulation' }}
         >
           {t('profile.editProfile')}
         </button>
@@ -289,6 +323,8 @@ export default function ProfilePage() {
                   key={content.id}
                   content={content}
                   showManage={activeTab === 'works'}
+                  onEdit={activeTab === 'works' ? () => handleEditContent(content) : undefined}
+                  onDelete={activeTab === 'works' ? () => setDeleteTarget(content) : undefined}
                 />
               ))}
             </div>
@@ -340,6 +376,16 @@ export default function ProfilePage() {
         />
       )}
 
+      {deleteTarget && (
+        <DeleteConfirmDialog
+          t={t}
+          title={deleteTarget.title}
+          loading={deleting}
+          onCancel={() => !deleting && setDeleteTarget(null)}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
+
       {toast && (
         <div
           className="fixed left-1/2 -translate-x-1/2 z-[3000] bg-black/80 text-white text-[12px] rounded-[var(--radius-sm)]"
@@ -385,6 +431,56 @@ function LanguageSwitch({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function DeleteConfirmDialog({
+  t,
+  title,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
+  title: string;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center px-6" onClick={onCancel}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-[320px] bg-bg border border-border/50 rounded-[var(--radius-lg)] animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+        style={{ padding: '20px' }}
+      >
+        <div className="text-[16px] font-semibold" style={{ marginBottom: 8 }}>
+          {t('profile.delete.confirmTitle')}
+        </div>
+        <div className="text-[13px] text-dim leading-relaxed" style={{ marginBottom: 18 }}>
+          {t('profile.delete.confirmDesc', { title })}
+        </div>
+        <div className="flex" style={{ gap: 10 }}>
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 bg-muted text-muted-fg text-[14px] font-semibold rounded-[var(--radius-sm)] hover:bg-border hover:text-fg transition-all disabled:opacity-40"
+            style={{ padding: '10px 0' }}
+          >
+            {t('profile.delete.cancel')}
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 bg-red-500 text-white text-[14px] font-semibold rounded-[var(--radius-sm)] active:scale-95 hover:brightness-110 transition-all disabled:opacity-60"
+            style={{ padding: '10px 0' }}
+          >
+            {loading ? t('profile.delete.deleting') : t('profile.delete.confirm')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

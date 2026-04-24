@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { Content } from '../../types';
 import { formatCount } from '../../utils/format';
 import { useTranslation } from '../../i18n';
@@ -10,9 +11,30 @@ interface ContentCardProps {
   onDelete?: () => void;
 }
 
+// 用户内容按竖屏移动端视口设计。预览卡是正方形，如果 iframe 直接按 100% 渲染，
+// 会把内容高度压到与卡片同高，导致首屏被严重压扁。这里以固定的「虚拟视口」
+// 渲染 iframe，再通过 transform:scale 等比缩到卡片宽度，展示顶部首屏。
+const PREVIEW_VIEWPORT_WIDTH = 390;
+const PREVIEW_VIEWPORT_HEIGHT = 720;
+
 export default function ContentCard({ content, onClick, showManage, onEdit, onDelete }: ContentCardProps) {
   const { t } = useTranslation();
   const hasCode = content.code && content.code.length > 50;
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+
+  useEffect(() => {
+    if (!hasCode || !previewRef.current) return;
+    const el = previewRef.current;
+    const update = () => {
+      const w = el.clientWidth;
+      if (w > 0) setScale(w / PREVIEW_VIEWPORT_WIDTH);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasCode]);
 
   return (
     <div
@@ -20,17 +42,29 @@ export default function ContentCard({ content, onClick, showManage, onEdit, onDe
       onClick={onClick}
     >
       <div
+        ref={previewRef}
         className="aspect-square flex items-center justify-center relative overflow-hidden"
         style={{ background: hasCode ? '#0A0A0C' : (content.coverGradient || '#1C1C1F') }}
       >
         {hasCode ? (
-          <iframe
-            srcDoc={content.code}
-            sandbox="allow-scripts"
-            className="w-full h-full border-0 pointer-events-none"
-            title={content.title}
-            loading="lazy"
-          />
+          scale > 0 && (
+            <iframe
+              srcDoc={content.code}
+              sandbox="allow-scripts"
+              title={content.title}
+              loading="lazy"
+              className="border-0 pointer-events-none"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: PREVIEW_VIEWPORT_WIDTH,
+                height: PREVIEW_VIEWPORT_HEIGHT,
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
+              }}
+            />
+          )
         ) : (
           <span className="text-5xl select-none group-hover:scale-110 transition-transform duration-300">{content.coverEmoji}</span>
         )}

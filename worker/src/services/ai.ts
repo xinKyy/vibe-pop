@@ -1,5 +1,11 @@
 import type { Env } from '../types';
 
+export interface AssetBrief {
+  name: string;
+  kind: 'image' | 'audio' | 'video' | 'other';
+  mime?: string;
+}
+
 const SYSTEM_PROMPT = `你是VibePop平台的AI内容生成器。根据用户输入直接输出一个完整可运行的单HTML文件（内联CSS/JS，无外部依赖）。
 
 要求：
@@ -8,19 +14,37 @@ const SYSTEM_PROMPT = `你是VibePop平台的AI内容生成器。根据用户输
 - 字体>=14px，触控区>=44px
 - 动画简洁流畅，视觉精美
 - 只输出HTML代码，以<!DOCTYPE html>开头，不要任何解释文字
-- 严禁使用 Markdown 代码围栏（例如 \`\`\`html 或 \`\`\`），直接输出裸 HTML`;
+- 严禁使用 Markdown 代码围栏（例如 \`\`\`html 或 \`\`\`），直接输出裸 HTML
 
-function buildMessages(prompt: string, existingCode: string | null) {
+【用户上传的资源引用规则 · 非常重要】
+- 用户在"资源"面板上传的文件，**必须**使用相对路径 \`./assets/文件名\` 引用（保持原始文件名，含中文与扩展名）。
+- **严禁**在代码中出现任何 \`blob:\` 开头的 URL（例如 \`blob:https://...\`）——它们是临时、一次性、跨域沙箱不可访问的，写进去一定白屏。
+- **严禁**使用 \`data:\` 的 base64 长字符串来嵌入这些文件；也**不要**自行编造外链 URL。
+- 运行/发布时平台会自动把 \`./assets/xxx\` 替换为可用的运行时 URL。`;
+
+function formatAssetsBlock(assets: AssetBrief[] | null | undefined): string {
+  if (!assets || assets.length === 0) return '';
+  const lines = assets.map((a) => `- ./assets/${a.name}  (${a.kind}${a.mime ? `, ${a.mime}` : ''})`);
+  return [
+    '',
+    '用户已上传的可用资源清单（只能用下面这些路径引用，不要使用 blob: / data: / 外链）：',
+    ...lines,
+    '',
+  ].join('\n');
+}
+
+function buildMessages(prompt: string, existingCode: string | null, assets?: AssetBrief[] | null) {
   const messages: { role: string; content: string }[] = [
     { role: 'system', content: SYSTEM_PROMPT },
   ];
+  const assetsBlock = formatAssetsBlock(assets);
   if (existingCode) {
     messages.push({
       role: 'user',
-      content: `Here is the existing code:\n\`\`\`html\n${existingCode}\n\`\`\`\n\nPlease modify it based on this request: ${prompt}`,
+      content: `Here is the existing code:\n\`\`\`html\n${existingCode}\n\`\`\`\n${assetsBlock}\nPlease modify it based on this request: ${prompt}`,
     });
   } else {
-    messages.push({ role: 'user', content: prompt });
+    messages.push({ role: 'user', content: assetsBlock ? `${assetsBlock}\n${prompt}` : prompt });
   }
   return messages;
 }
@@ -28,7 +52,8 @@ function buildMessages(prompt: string, existingCode: string | null) {
 export function generateContentStream(
   prompt: string,
   existingCode: string | null,
-  env: Env
+  env: Env,
+  assets?: AssetBrief[] | null
 ): ReadableStream {
   const apiKey = env.AI_API_KEY;
   const baseUrl = env.AI_BASE_URL || 'https://api.dgrid.ai/v1';
@@ -46,9 +71,9 @@ export function generateContentStream(
     });
   }
 
-  const messages = buildMessages(prompt, existingCode);
+  const messages = buildMessages(prompt, existingCode, assets);
   const url = `${baseUrl}/chat/completions`;
-  console.log('[AI Stream] Calling:', url, 'model:', model);
+  console.log('[AI Stream] Calling:', url, 'model:', model, 'assets:', assets?.length ?? 0);
 
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
@@ -158,7 +183,8 @@ export function generateContentStream(
 export async function generateContent(
   prompt: string,
   existingCode: string | null,
-  env: Env
+  env: Env,
+  assets?: AssetBrief[] | null
 ): Promise<string> {
   const apiKey = env.AI_API_KEY;
   const baseUrl = env.AI_BASE_URL || 'https://api.dgrid.ai/v1';
@@ -169,7 +195,7 @@ export async function generateContent(
   }
 
   try {
-    const messages = buildMessages(prompt, existingCode);
+    const messages = buildMessages(prompt, existingCode, assets);
     const url = `${baseUrl}/chat/completions`;
     console.log('[AI] Calling:', url, 'model:', model);
 

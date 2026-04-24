@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { User } from '../../types';
 import { useTranslation } from '../../i18n';
 
@@ -11,22 +12,49 @@ interface EditProfileModalProps {
 
 const AVATAR_PRESETS = ['😀', '😺', '🎨', '🎮', '🎯', '✈️', '🤖', '⏰', '🎂', '🌟', '🔥', '💎', '🚀', '🌈', '👻', '🦄'];
 
+// 防御历史脏数据：某些老账户会把字段保存成字符串 "undefined" / "null"，
+// 读取时需要当作空值，避免输入框里直接显示 "undefined"。
+function sanitizeField(v: unknown): string {
+  if (typeof v !== 'string') return '';
+  const t = v.trim();
+  if (!t || t === 'undefined' || t === 'null') return '';
+  return v;
+}
+
 export default function EditProfileModal({ user, isOpen, onClose, onSave }: EditProfileModalProps) {
   const { t } = useTranslation();
-  const [displayName, setDisplayName] = useState(user.displayName ?? user.username ?? '');
-  const [avatar, setAvatar] = useState(user.avatar ?? '😀');
-  const [bio, setBio] = useState(user.bio ?? '');
+  const initName = sanitizeField(user.displayName) || sanitizeField(user.username) || '';
+  const initAvatar = sanitizeField(user.avatar) || '😀';
+  const initBio = sanitizeField(user.bio);
+  const [displayName, setDisplayName] = useState(initName);
+  const [avatar, setAvatar] = useState(initAvatar);
+  const [bio, setBio] = useState(initBio);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setDisplayName(user.displayName ?? user.username ?? '');
-      setAvatar(user.avatar ?? '😀');
-      setBio(user.bio ?? '');
+      setDisplayName(sanitizeField(user.displayName) || sanitizeField(user.username) || '');
+      setAvatar(sanitizeField(user.avatar) || '😀');
+      setBio(sanitizeField(user.bio));
       setError('');
     }
   }, [isOpen, user]);
+
+  // 打开时锁住 body 滚动 + 支持 ESC 关闭，避免移动端误触或输入时页面被意外滚动。
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -53,8 +81,13 @@ export default function EditProfileModal({ user, isOpen, onClose, onSave }: Edit
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[2000] flex items-end justify-center" onClick={onClose}>
+  const modal = (
+    <div
+      className="fixed inset-0 z-[2000] flex items-end justify-center"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className="relative w-full max-w-[430px] bg-bg flex flex-col animate-slide-up rounded-t-[var(--radius-xl)]"
@@ -177,4 +210,8 @@ export default function EditProfileModal({ user, isOpen, onClose, onSave }: Edit
       </div>
     </div>
   );
+
+  // 通过 Portal 渲染到 body，规避 AppShell 的 overflow-hidden、overflow-y-auto 等
+  // 祖先节点可能造成的定位/裁剪问题，同时与 CommentSheet/ShareSheet 行为保持一致。
+  return createPortal(modal, document.body);
 }
