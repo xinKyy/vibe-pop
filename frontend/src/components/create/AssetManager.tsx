@@ -5,6 +5,7 @@ import {
   dedupeName,
   detectKind,
   formatBytes,
+  readAsDataUrl,
   type Asset,
 } from '../../utils/assets';
 import { useTranslation } from '../../i18n';
@@ -45,13 +46,20 @@ export default function AssetManager({ assets, onChange }: AssetManagerProps) {
       }
       const name = dedupeName(file.name, existing);
       existing.push(name);
-      const blobUrl = URL.createObjectURL(file);
+      // 用 data: URL 而不是 URL.createObjectURL，原因见 utils/assets.ts 里 Asset.blobUrl 的注释
+      let dataUrl: string;
+      try {
+        dataUrl = await readAsDataUrl(file);
+      } catch {
+        showToast(t('assets.overLimit', { name: file.name, limit: formatBytes(limit.max) }));
+        continue;
+      }
       next.push({
         id: crypto.randomUUID(),
         name,
         size: file.size,
         mime: file.type || 'application/octet-stream',
-        blobUrl,
+        blobUrl: dataUrl,
         kind,
       });
     }
@@ -62,7 +70,6 @@ export default function AssetManager({ assets, onChange }: AssetManagerProps) {
     const target = assets.find((a) => a.id === id);
     if (!target) return;
     if (!window.confirm(t('assets.confirmDelete', { name: target.name }))) return;
-    try { URL.revokeObjectURL(target.blobUrl); } catch { /* noop */ }
     onChange(assets.filter((a) => a.id !== id));
   };
 

@@ -69,14 +69,6 @@ export default function CreatePage() {
     api.getTemplates().then(setTemplates).catch(() => {});
   }, []);
 
-  // 页面卸载时回收 Blob URL
-  useEffect(() => {
-    return () => {
-      assets.forEach((a) => { try { URL.revokeObjectURL(a.blobUrl); } catch { /* noop */ } });
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const generate = useCallback(async (userPrompt: string, existingCode?: string) => {
     if (!isLoggedIn) {
       navigate('/login');
